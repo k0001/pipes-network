@@ -1,8 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Control.Pipe.Network (
   Application,
-  sourceSocket,
-  sinkSocket,
+  socketReader,
+  socketWriter,
   ServerSettings(..),
   runTCPServer,
   ClientSettings(..),
@@ -13,35 +13,34 @@ import qualified Network.Socket as NS
 import Network.Socket (Socket)
 import Network.Socket.ByteString (sendAll, recv)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import Control.Exception (bracketOnError, IOException, bracket, throwIO, SomeException, try)
-import Control.Monad (forever)
-import Control.Monad.State
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, register)
-import Control.Pipe
+import qualified Data.ByteString as B
 import Control.Concurrent (forkIO)
+import Control.Exception (bracketOnError, IOException, bracket, finally)
+import Control.Monad (forever)
+import Control.Monad.Trans (MonadIO, lift, liftIO)
+import Control.Pipe
 
 -- adapted from conduit
 
 -- | Stream data from the socket.
-sourceSocket :: MonadIO m => Socket -> Producer ByteString m ()
-sourceSocket socket = go
+socketReader :: MonadIO m => Socket -> Pipe x ByteString m ()
+socketReader socket = go
   where
     go = do
       bs <- lift . liftIO $ recv socket 4096
-      if S.null bs
+      if B.null bs
         then return ()
         else yield bs >> go
 
 -- | Stream data to the socket.
-sinkSocket :: MonadIO m => Socket -> Consumer ByteString m r
-sinkSocket socket = forever $ await >>= lift . liftIO . sendAll socket
+socketWriter :: MonadIO m => Socket -> Consumer ByteString m r
+socketWriter socket = forever $ await >>= lift . liftIO . sendAll socket
 
--- | A simple TCP application. It takes two arguments: the @Source@ to read
--- input data from, and the @Sink@ to send output data to.
-type Application = Producer ByteString (ResourceT IO) ()
-                -> Consumer ByteString (ResourceT IO) ()
-                -> ResourceT IO ()
+-- | A simple TCP application. It takes two arguments: the 'Producer' to read
+-- input data from, and the 'Consumer' to send output data to.
+type Application m r = Producer ByteString m ()
+                    -> Consumer ByteString m ()
+                    -> IO r
 
 -- | Settings for a TCP server. It takes a port to listen on, and an optional
 -- hostname to bind to.
@@ -53,17 +52,19 @@ data ServerSettings = ServerSettings
 -- | Run an @Application@ with the given settings. This function will create a
 -- new listening socket, accept connections on it, and spawn a new thread for
 -- each connection.
-runTCPServer :: ServerSettings -> Application -> IO ()
+runTCPServer :: MonadIO m => ServerSettings -> Application m r -> IO r
 runTCPServer (ServerSettings port host) app = bracket
     (bindPort host port)
     NS.sClose
     (forever . serve)
   where
     serve lsocket = do
-        (socket, _addr) <- NS.accept lsocket
-        forkIO $ runResourceT $ do
-            _ <- register $ NS.sClose socket
-            app (sourceSocket socket) (sinkSocket socket)
+      (socket, _addr) <- NS.accept lsocket
+      forkIO $ do
+        finally
+          (app (socketReader socket) (socketWriter socket))
+          (NS.sClose socket)
+        return ()
 
 -- | Settings for a TCP client, specifying how to connect to the server.
 data ClientSettings = ClientSettings
@@ -71,12 +72,12 @@ data ClientSettings = ClientSettings
     , clientHost :: String
     }
 
--- | Run an @Application@ by connecting to the specified server.
-runTCPClient :: ClientSettings -> Application -> IO ()
+-- | Run an 'Application' by connecting to the specified server.
+runTCPClient :: MonadIO m => ClientSettings -> Application m r -> IO r
 runTCPClient (ClientSettings port host) app = bracket
     (getSocket host port)
     NS.sClose
-    (\s -> runResourceT $ app (sourceSocket s) (sinkSocket s))
+    (\s -> app (socketReader s) (socketWriter s))
 
 -- | Attempt to connect to the given host/port.
 getSocket :: String -> Int -> IO NS.Socket
@@ -86,15 +87,12 @@ getSocket host' port' = do
                         , NS.addrSocketType = NS.Stream
                         }
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
-    sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
-                      (NS.addrProtocol addr)
-    ee <- try' $ NS.connect sock (NS.addrAddress addr)
-    case ee of
-        Left e -> NS.sClose sock >> throwIO e
-        Right () -> return sock
-  where
-    try' :: IO a -> IO (Either SomeException a)
-    try' = try
+    bracketOnError
+      (NS.socket (NS.addrFamily addr)
+                 (NS.addrSocketType addr)
+                 (NS.addrProtocol addr))
+      NS.sClose
+      (\sock -> NS.connect sock (NS.addrAddress addr) >> return sock)
 
 -- | Attempt to bind a listening @Socket@ on the given host/port. If no host is
 -- given, will use the first address available.
@@ -131,4 +129,3 @@ bindPort host p = do
               return sock
           )
     tryAddrs addrs
-
