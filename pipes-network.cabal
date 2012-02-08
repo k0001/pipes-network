@@ -1,0 +1,23 @@
+Name: pipes-network
+Version: 0.0.1
+Cabal-Version: >= 1.8
+Build-Type: Simple
+License: BSD3
+License-File: LICENSE
+Copyright: (c) 2012 Paolo Capriotti <p.capriotti@gmail.com>
+Author: Paolo Capriotti
+Maintainer: p.capriotti@gmail.com
+Stability: Experimental
+Synopsis: Pipes utilities for sockets
+Category: Control, Enumerator, Network
+
+Library
+    Build-Depends:
+        base (== 4.*),
+        mtl,
+        pipes (== 1.1.*),
+        conduit (== 0.1.*),
+        bytestring (== 0.9.*),
+        network
+    Exposed-Modules:
+        Control.Pipe.Network
