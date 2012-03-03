@@ -13,12 +13,11 @@ import qualified Network.Socket as NS
 import Network.Socket (Socket)
 import Network.Socket.ByteString (sendAll, recv)
 import Data.ByteString (ByteString)
-import Data.Void
 import qualified Data.ByteString as B
 import Control.Concurrent (forkIO)
 import qualified Control.Exception as E
 import Control.Monad (forever, unless)
-import Control.Monad.Trans (MonadIO, liftIO)
+import Control.Monad.Trans (MonadIO, liftIO, lift)
 import Control.Pipe
 
 -- adapted from conduit
