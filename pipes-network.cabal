@@ -16,7 +16,7 @@ Library
         base (== 4.*),
         mtl,
         void,
-        pipes (== 1.1.*),
+        pipes-core (== 0.0.*),
         bytestring (== 0.9.*),
         network
     Exposed-Modules:
