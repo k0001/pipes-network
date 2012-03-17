@@ -1,5 +1,5 @@
 Name: pipes-network
-Version: 0.0.1
+Version: 0.0.2
 License: BSD3
 License-file: LICENSE
 Author: Paolo Capriotti
@@ -20,7 +20,7 @@ Library
     Build-Depends:
         base (== 4.*),
         mtl,
-        pipes-core (== 0.0.*),
+        pipes-core (== 0.1.*),
         bytestring (== 0.9.*),
         network
     Exposed-Modules:
