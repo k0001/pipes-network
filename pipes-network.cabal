@@ -19,7 +19,7 @@ Source-Repository head
 Library
     Build-Depends:
         base (== 4.*),
-        mtl,
+        transformers (>= 0.2 && < 0.4),
         pipes-core (== 0.1.*),
         bytestring (== 0.9.*),
         network

@@ -17,7 +17,8 @@ import qualified Data.ByteString as B
 import Control.Concurrent (forkIO)
 import qualified Control.Exception as E
 import Control.Monad (forever, unless)
-import Control.Monad.Trans (MonadIO, liftIO, lift)
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Control.Pipe
 
 -- adapted from conduit
