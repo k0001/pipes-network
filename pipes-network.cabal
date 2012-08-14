@@ -5,7 +5,7 @@ License-file: LICENSE
 Author: Paolo Capriotti
 Maintainer: p.capriotti@gmail.com
 Stability: Experimental
-Homepage: https://github.com/pcapriotti/pipes-extra
+Homepage: https://github.com/pcapriotti/pipes-network
 Category: Control, Enumerator, Network
 Build-type: Simple
 Synopsis: Utilities to deal with sockets.
@@ -14,7 +14,7 @@ Cabal-version: >=1.8
 
 Source-Repository head
     Type: git
-    Location: https://github.com/pcapriotti/pipes-extra
+    Location: https://github.com/pcapriotti/pipes-network
 
 Library
     Build-Depends:
