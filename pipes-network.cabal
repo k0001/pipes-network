@@ -1,27 +1,51 @@
 Name: pipes-network
-Version: 0.0.2
+Version: 0.1.0
 License: BSD3
 License-file: LICENSE
-Author: Paolo Capriotti
-Maintainer: p.capriotti@gmail.com
+Copyright: Copyright (c) Paolo Capriotti 2012-2012,
+                         Renzo Carbonara 2012-
+Author: Paolo Capriotti, Renzo Carbonara
+Maintainer: renzocarbonaraλgmail.com
 Stability: Experimental
-Homepage: https://github.com/pcapriotti/pipes-network
-Category: Control, Enumerator, Network
+tested-with: GHC == 7.4.1
+Homepage: https://github.com/k0001/pipes-network
+Bug-reports: https://github.com/k0001/pipes-network
+Category: Control, Pipes, Network
 Build-type: Simple
-Synopsis: Utilities to deal with sockets.
-Description: Utilities to deal with sockets.
+Synopsis: Utilities to deal with sockets using the @pipes@ library.
+Description: Utilities to deal with sockets using the @pipes@ library.
 Cabal-version: >=1.8
+
+Flag examples
+  Description: Build examples
+  Default:     False
 
 Source-Repository head
     Type: git
-    Location: https://github.com/pcapriotti/pipes-network
+    Location: git://github.com/k0001/pipes-network.git
 
 Library
     Build-Depends:
         base (== 4.*),
-        transformers (>= 0.2 && < 0.4),
-        pipes-core (== 0.1.*),
         bytestring (== 0.9.*),
-        network
+        network,
+        pipes (== 3.0.*),
+        transformers (>= 0.2 && < 0.4)
     Exposed-Modules:
-        Control.Pipe.Network
+        Control.Proxy.Network
+
+Executable example-echo
+  if !flag(examples)
+      Buildable: False
+
+  Hs-source-dirs:      example
+  Main-is:             echo.hs
+  Build-depends:
+        base ==4.5.*,
+        bytestring (== 0.9.*),
+        network,
+        pipes (== 3.0.*),
+        transformers (>= 0.2 && < 0.4),
+        pipes-network
+
+

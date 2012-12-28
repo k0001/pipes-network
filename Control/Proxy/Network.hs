@@ -1,46 +1,52 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module Control.Pipe.Network (
-  Application,
-  socketReader,
-  socketWriter,
-  ServerSettings(..),
-  runTCPServer,
-  ClientSettings(..),
-  runTCPClient,
-  ) where
+{-# LANGUAGE KindSignatures #-}
 
-import qualified Network.Socket as NS
-import Network.Socket (Socket)
-import Network.Socket.ByteString (sendAll, recv)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import Control.Concurrent (forkIO)
-import qualified Control.Exception as E
-import Control.Monad (forever, unless)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Control.Pipe
+module Control.Proxy.Network (
+   Application,
+   socketReader,
+   socketWriter,
+   ServerSettings(..),
+   runTCPServer,
+   ClientSettings(..),
+   runTCPClient,
+   ) where
+
+import           Control.Concurrent (forkIO)
+import qualified Control.Exception                         as E
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Proxy
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString                           as B
+import           Network.Socket (Socket)
+import qualified Network.Socket                            as NS
+import           Network.Socket.ByteString (sendAll, recv)
 
 -- adapted from conduit
 
 -- | Stream data from the socket.
-socketReader :: MonadIO m => Socket -> Pipe () ByteString m ()
-socketReader socket = go
-  where
-    go = do
-      bs <- lift . liftIO $ recv socket 4096
-      unless (B.null bs) $
-        yield bs >> go
+socketReader :: (MonadIOP p, MonadIO m)
+             => Socket -> () -> Producer p ByteString m ()
+socketReader socket () = runIdentityP loop
+  where loop = do bs <- liftIO $ recv socket 4096
+                  if B.null bs
+                    then return ()
+                    else respond bs >> loop
+
 
 -- | Stream data to the socket.
-socketWriter :: MonadIO m => Socket -> Pipe ByteString Void m r
-socketWriter socket = forever $ await >>= lift . liftIO . sendAll socket
+socketWriter :: (MonadIOP p, MonadIO m)
+             => Socket -> () -> Consumer p ByteString m ()
+socketWriter socket = runIdentityK . foreverK $ loop
+  where loop = request >=> liftIO . sendAll socket
+
 
 -- | A simple TCP application. It takes two arguments: the 'Producer' to read
 -- input data from, and the 'Consumer' to send output data to.
-type Application m r = Pipe () ByteString m ()
-                    -> Pipe ByteString Void m ()
-                    -> IO r
+type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
+  = (() -> Producer p ByteString m ())
+  -> (() -> Consumer p ByteString m ())
+  -> IO r
 
 -- | Settings for a TCP server. It takes a port to listen on, and an optional
 -- hostname to bind to.
@@ -52,7 +58,7 @@ data ServerSettings = ServerSettings
 -- | Run an @Application@ with the given settings. This function will create a
 -- new listening socket, accept connections on it, and spawn a new thread for
 -- each connection.
-runTCPServer :: MonadIO m => ServerSettings -> Application m r -> IO r
+runTCPServer :: (MonadIOP p, MonadIO m) => ServerSettings -> Application p m r -> IO r
 runTCPServer (ServerSettings port host) app = E.bracket
     (bindPort host port)
     NS.sClose
@@ -66,6 +72,7 @@ runTCPServer (ServerSettings port host) app = E.bracket
           (NS.sClose socket)
         return ()
 
+
 -- | Settings for a TCP client, specifying how to connect to the server.
 data ClientSettings = ClientSettings
     { clientPort :: Int
@@ -73,7 +80,7 @@ data ClientSettings = ClientSettings
     }
 
 -- | Run an 'Application' by connecting to the specified server.
-runTCPClient :: MonadIO m => ClientSettings -> Application m r -> IO r
+runTCPClient :: (MonadIOP p, MonadIO m) => ClientSettings -> Application p m r -> IO r
 runTCPClient (ClientSettings port host) app = E.bracket
     (getSocket host port)
     NS.sClose
