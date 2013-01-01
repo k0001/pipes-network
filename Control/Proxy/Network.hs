@@ -22,17 +22,15 @@ import           Network.Socket (Socket)
 import qualified Network.Socket                            as NS
 import           Network.Socket.ByteString (sendAll, recv)
 
+
 -- adapted from conduit
 
 -- | Stream data from the socket.
 socketReader :: (MonadIOP p, MonadIO m)
-             => Socket -> () -> Producer p ByteString m ()
-socketReader socket () = runIdentityP loop
-  where loop = do bs <- liftIO $ recv socket 4096
-                  if B.null bs
-                    then return ()
-                    else respond bs >> loop
-
+             => Int -> Socket -> () -> Producer p ByteString m ()
+socketReader bufsize socket () = runIdentityP loop
+  where loop = do bs <- liftIO $ recv socket bufsize
+                  unless (B.null bs) $ respond bs >> loop
 
 -- | Stream data to the socket.
 socketWriter :: (MonadIOP p, MonadIO m)
@@ -48,6 +46,7 @@ socketWriter socket = runIdentityK . foreverK $ loop
 type TcpApplication (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
   = ((() -> Producer p ByteString m (), () -> Consumer p ByteString m ()) -> m r)
   -> m r
+
 
 -- | Settings for a TCP server. It takes a port to listen on, and an optional
 -- hostname to bind to.
@@ -69,7 +68,7 @@ runTCPServer (ServerSettings port host) app = E.bracket
       (socket, _addr) <- NS.accept lsocket
       forkIO $ do
         E.finally
-          (app (socketReader socket, socketWriter socket))
+          (app (socketReader 4096 socket, socketWriter socket))
           (NS.sClose socket)
         return ()
 
@@ -85,7 +84,8 @@ runTCPClient :: MonadIOP p => ClientSettings -> TcpApplication p IO r
 runTCPClient (ClientSettings port host) app = E.bracket
     (getSocket host port)
     NS.sClose
-    (\s -> app (socketReader s, socketWriter s))
+    (\s -> app (socketReader 4096 s, socketWriter s))
+
 
 -- | Attempt to connect to the given host/port.
 getSocket :: String -> Int -> IO NS.Socket
