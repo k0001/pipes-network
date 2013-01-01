@@ -26,17 +26,17 @@ import           Network.Socket.ByteString (sendAll, recv)
 -- adapted from conduit
 
 -- | Stream data from the socket.
-socketReader :: (MonadIOP p, MonadIO m)
+socketReader :: (Proxy p, MonadIO m)
              => Int -> Socket -> () -> Producer p ByteString m ()
 socketReader bufsize socket () = runIdentityP loop
-  where loop = do bs <- liftIO $ recv socket bufsize
+  where loop = do bs <- lift . liftIO $ recv socket bufsize
                   unless (B.null bs) $ respond bs >> loop
 
 -- | Stream data to the socket.
-socketWriter :: (MonadIOP p, MonadIO m)
+socketWriter :: (Proxy p, MonadIO m)
              => Socket -> () -> Consumer p ByteString m ()
 socketWriter socket = runIdentityK . foreverK $ loop
-  where loop = request >=> liftIO . sendAll socket
+  where loop = request >=> lift . liftIO . sendAll socket
 
 
 -- | A simple TCP application.
@@ -58,7 +58,7 @@ data ServerSettings = ServerSettings
 -- | Run a 'TcpApplication' with the given settings. This function will
 -- create a new listening socket, accept connections on it, and spawn a
 -- new thread for each connection.
-runTCPServer :: MonadIOP p => ServerSettings -> TcpApplication p IO r
+runTCPServer :: Proxy p => ServerSettings -> TcpApplication p IO r
 runTCPServer (ServerSettings port host) app = E.bracket
     (bindPort host port)
     NS.sClose
@@ -80,7 +80,7 @@ data ClientSettings = ClientSettings
     }
 
 -- | Run a 'TcpApplication' by connecting to the specified server.
-runTCPClient :: MonadIOP p => ClientSettings -> TcpApplication p IO r
+runTCPClient :: Proxy p => ClientSettings -> TcpApplication p IO r
 runTCPClient (ClientSettings port host) app = E.bracket
     (getSocket host port)
     NS.sClose
