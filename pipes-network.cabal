@@ -34,6 +34,8 @@ Library
     Exposed-Modules:
         Control.Proxy.Network
 
+    ghc-options: -Wall -fno-warn-unused-do-bind
+
 Executable example-echo
   if !flag(examples)
       Buildable: False
