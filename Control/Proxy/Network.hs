@@ -2,7 +2,7 @@
 {-# LANGUAGE KindSignatures #-}
 
 module Control.Proxy.Network (
-   Application,
+   TcpApplication,
    socketReader,
    socketWriter,
    ServerSettings(..),
@@ -41,12 +41,13 @@ socketWriter socket = runIdentityK . foreverK $ loop
   where loop = request >=> liftIO . sendAll socket
 
 
--- | A simple TCP application. It takes two arguments: the 'Producer' to read
--- input data from, and the 'Consumer' to send output data to.
-type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
-  = (() -> Producer p ByteString m ())
-  -> (() -> Consumer p ByteString m ())
-  -> IO r
+-- | A simple TCP application.
+--
+-- It takes a continuation that recieves a 'Producer' to read input data
+-- from, and a 'Consumer' to send output data to.
+type TcpApplication (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
+  = ((() -> Producer p ByteString m (), () -> Consumer p ByteString m ()) -> m r)
+  -> m r
 
 -- | Settings for a TCP server. It takes a port to listen on, and an optional
 -- hostname to bind to.
@@ -55,10 +56,10 @@ data ServerSettings = ServerSettings
     , serverHost :: Maybe String -- ^ 'Nothing' indicates no preference
     }
 
--- | Run an @Application@ with the given settings. This function will create a
--- new listening socket, accept connections on it, and spawn a new thread for
--- each connection.
-runTCPServer :: (MonadIOP p, MonadIO m) => ServerSettings -> Application p m r -> IO r
+-- | Run a 'TcpApplication' with the given settings. This function will
+-- create a new listening socket, accept connections on it, and spawn a
+-- new thread for each connection.
+runTCPServer :: MonadIOP p => ServerSettings -> TcpApplication p IO r
 runTCPServer (ServerSettings port host) app = E.bracket
     (bindPort host port)
     NS.sClose
@@ -68,7 +69,7 @@ runTCPServer (ServerSettings port host) app = E.bracket
       (socket, _addr) <- NS.accept lsocket
       forkIO $ do
         E.finally
-          (app (socketReader socket) (socketWriter socket))
+          (app (socketReader socket, socketWriter socket))
           (NS.sClose socket)
         return ()
 
@@ -79,12 +80,12 @@ data ClientSettings = ClientSettings
     , clientHost :: String
     }
 
--- | Run an 'Application' by connecting to the specified server.
-runTCPClient :: (MonadIOP p, MonadIO m) => ClientSettings -> Application p m r -> IO r
+-- | Run a 'TcpApplication' by connecting to the specified server.
+runTCPClient :: MonadIOP p => ClientSettings -> TcpApplication p IO r
 runTCPClient (ClientSettings port host) app = E.bracket
     (getSocket host port)
     NS.sClose
-    (\s -> app (socketReader s) (socketWriter s))
+    (\s -> app (socketReader s, socketWriter s))
 
 -- | Attempt to connect to the given host/port.
 getSocket :: String -> Int -> IO NS.Socket
