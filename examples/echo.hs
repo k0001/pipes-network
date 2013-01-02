@@ -4,6 +4,7 @@ import qualified Data.ByteString.Char8 as B8
 import           Data.Char (toUpper)
 
 
+main :: IO ()
 main = do
   putStrLn "Listening on 127.0.0.1, TCP port 9999..."
 
