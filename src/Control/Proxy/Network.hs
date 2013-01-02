@@ -44,7 +44,7 @@ socketWriter socket = runIdentityK . foreverK $ loop
 -- It takes a continuation that recieves a 'Producer' to read input data
 -- from, and a 'Consumer' to send output data to.
 type TcpApplication (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
-  = ((() -> Producer p ByteString m (), () -> Consumer p ByteString m ()) -> m r)
+  = (() -> Producer p ByteString m (), () -> Consumer p ByteString m ())
   -> m r
 
 
@@ -58,7 +58,7 @@ data ServerSettings = ServerSettings
 -- | Run a 'TcpApplication' with the given settings. This function will
 -- create a new listening socket, accept connections on it, and spawn a
 -- new thread for each connection.
-runTCPServer :: Proxy p => ServerSettings -> TcpApplication p IO r
+runTCPServer :: Proxy p => ServerSettings -> TcpApplication p IO r -> IO r
 runTCPServer (ServerSettings port host) app = E.bracket
     (bindPort host port)
     NS.sClose
@@ -80,7 +80,7 @@ data ClientSettings = ClientSettings
     }
 
 -- | Run a 'TcpApplication' by connecting to the specified server.
-runTCPClient :: Proxy p => ClientSettings -> TcpApplication p IO r
+runTCPClient :: Proxy p => ClientSettings -> TcpApplication p IO r -> IO r
 runTCPClient (ClientSettings port host) app = E.bracket
     (getSocket host port)
     NS.sClose
