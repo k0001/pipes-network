@@ -9,7 +9,7 @@ Utilities to deal with sockets using the **pipes** library.
     import qualified Data.ByteString.Char8 as B8
     import           Data.Char (toUpper)
 
-    echo src dst = runProxy $ src >-> dst
+    echo (src,dst) = runProxy $ src >-> dst
 
     main = do
         putStrLn "Listening on 127.0.0.1, TCP port 9999..."
