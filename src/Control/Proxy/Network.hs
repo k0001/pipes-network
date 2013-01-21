@@ -11,32 +11,31 @@ module Control.Proxy.Network (
    runTCPClient,
    ) where
 
-import           Control.Concurrent (forkIO)
+import           Control.Concurrent                        (forkIO)
 import qualified Control.Exception                         as E
 import           Control.Monad
+import           Control.Monad.Trans.Class
 import           Control.Monad.IO.Class
-import           Control.Proxy
-import           Data.ByteString (ByteString)
+import qualified Control.Proxy                             as P
 import qualified Data.ByteString                           as B
-import           Network.Socket (Socket)
 import qualified Network.Socket                            as NS
-import           Network.Socket.ByteString (sendAll, recv)
+import           Network.Socket.ByteString                 (sendAll, recv)
 
 
 -- adapted from conduit
 
 -- | Stream data from the socket.
-socketReader :: (Proxy p, MonadIO m)
-             => Int -> Socket -> () -> Producer p ByteString m ()
-socketReader bufsize socket () = runIdentityP loop
+socketReader :: (P.Proxy p, MonadIO m)
+             => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
+socketReader bufsize socket () = P.runIdentityP loop
   where loop = do bs <- lift . liftIO $ recv socket bufsize
-                  unless (B.null bs) $ respond bs >> loop
+                  unless (B.null bs) $ P.respond bs >> loop
 
 -- | Stream data to the socket.
-socketWriter :: (Proxy p, MonadIO m)
-             => Socket -> () -> Consumer p ByteString m ()
-socketWriter socket = runIdentityK . foreverK $ loop
-  where loop = request >=> lift . liftIO . sendAll socket
+socketWriter :: (P.Proxy p, MonadIO m)
+             => NS.Socket -> () -> P.Consumer p B.ByteString m ()
+socketWriter socket = P.runIdentityK . P.foreverK $ loop
+  where loop = P.request >=> lift . liftIO . sendAll socket
 
 
 -- | A simple TCP application.
@@ -44,7 +43,7 @@ socketWriter socket = runIdentityK . foreverK $ loop
 -- It takes a continuation that recieves a 'Producer' to read input data
 -- from, and a 'Consumer' to send output data to.
 type TcpApplication (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
-  = (() -> Producer p ByteString m (), () -> Consumer p ByteString m ())
+  = (() -> P.Producer p B.ByteString m (), () -> P.Consumer p B.ByteString m ())
   -> m r
 
 
@@ -58,7 +57,7 @@ data ServerSettings = ServerSettings
 -- | Run a 'TcpApplication' with the given settings. This function will
 -- create a new listening socket, accept connections on it, and spawn a
 -- new thread for each connection.
-runTCPServer :: Proxy p => ServerSettings -> TcpApplication p IO r -> IO r
+runTCPServer :: P.Proxy p => ServerSettings -> TcpApplication p IO r -> IO r
 runTCPServer (ServerSettings port host) app = E.bracket
     (bindPort host port)
     NS.sClose
@@ -80,12 +79,11 @@ data ClientSettings = ClientSettings
     }
 
 -- | Run a 'TcpApplication' by connecting to the specified server.
-runTCPClient :: Proxy p => ClientSettings -> TcpApplication p IO r -> IO r
+runTCPClient :: P.Proxy p => ClientSettings -> TcpApplication p IO r -> IO r
 runTCPClient (ClientSettings port host) app = E.bracket
     (getSocket host port)
     NS.sClose
     (\s -> app (socketReader 4096 s, socketWriter s))
-
 
 -- | Attempt to connect to the given host/port.
 getSocket :: String -> Int -> IO NS.Socket
@@ -104,7 +102,7 @@ getSocket host' port' = do
 
 -- | Attempt to bind a listening @Socket@ on the given host/port. If no host is
 -- given, will use the first address available.
-bindPort :: Maybe String -> Int -> IO Socket
+bindPort :: Maybe String -> Int -> IO NS.Socket
 bindPort host p = do
     let hints = NS.defaultHints
             { NS.addrFlags =
