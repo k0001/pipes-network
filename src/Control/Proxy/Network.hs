@@ -87,6 +87,9 @@ runTCPClient (ClientSettings port host) app = E.bracket
 
 -- | Attempt to connect to the given host/port.
 getSocket :: String -> Int -> IO NS.Socket
+-- TODO Rename this function to something like 'connect'.
+-- TODO return NS.SockAddr too
+-- TODO Abstract away socket type.
 getSocket host' port' = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
@@ -103,6 +106,9 @@ getSocket host' port' = do
 -- | Attempt to bind a listening @Socket@ on the given host/port. If no host is
 -- given, will use the first address available.
 bindPort :: Maybe String -> Int -> IO NS.Socket
+-- TODO Rename this function to something like 'listen'.
+-- TODO Host and port parameters might use more comprehensive types.
+-- TODO Abstract away socket type.
 bindPort host p = do
     let hints = NS.defaultHints
             { NS.addrFlags =
