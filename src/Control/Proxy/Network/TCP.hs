@@ -5,8 +5,8 @@ module Control.Proxy.Network.TCP (
    ServerSettings(..),
    ClientSettings(..),
    -- * Socket proxies
-   socketReader,
-   socketWriter,
+   socketP,
+   socketC,
    -- * Low level API
    listen,
    connect,
@@ -49,18 +49,18 @@ data ClientSettings = ClientSettings
 
 
 
--- | Stream data from the socket.
-socketReader :: (P.Proxy p, MonadIO m)
+-- | Socket Producer. Stream data from the socket.
+socketP :: (P.Proxy p, MonadIO m)
              => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
-socketReader bufsize socket () = P.runIdentityP loop
+socketP bufsize socket () = P.runIdentityP loop
   where loop = do bs <- lift . liftIO $ recv socket bufsize
                   unless (B.null bs) $ P.respond bs >> loop
 
 
--- | Stream data to the socket.
-socketWriter :: (P.Proxy p, MonadIO m)
+-- | Socket Consumer. Stream data to the socket.
+socketC :: (P.Proxy p, MonadIO m)
              => NS.Socket -> () -> P.Consumer p B.ByteString m ()
-socketWriter socket = P.runIdentityK . P.foreverK $ loop
+socketC socket = P.runIdentityK . P.foreverK $ loop
   where loop = P.request >=> lift . liftIO . sendAll socket
 
 
