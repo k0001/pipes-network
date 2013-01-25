@@ -81,27 +81,27 @@ data ClientSettings = ClientSettings
 -- | Run a 'TcpApplication' by connecting to the specified server.
 runTCPClient :: P.Proxy p => ClientSettings -> TcpApplication p IO r -> IO r
 runTCPClient (ClientSettings port host) app = E.bracket
-    (getSocket host port)
-    NS.sClose
-    (\s -> app (socketReader 4096 s, socketWriter s))
+    (connect host port)
+    (NS.sClose . fst)
+    (\(s,_) -> app (socketReader 4096 s, socketWriter s))
 
 -- | Attempt to connect to the given host/port.
-getSocket :: String -> Int -> IO NS.Socket
--- TODO Rename this function to something like 'connect'.
--- TODO return NS.SockAddr too
+connect :: String -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
-getSocket host' port' = do
+connect host port = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
                         }
-    (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+    (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just $ show port)
     E.bracketOnError
       (NS.socket (NS.addrFamily addr)
                  (NS.addrSocketType addr)
                  (NS.addrProtocol addr))
       NS.sClose
-      (\sock -> NS.connect sock (NS.addrAddress addr) >> return sock)
+      (\sock -> do let sockAddr = NS.addrAddress addr
+                   NS.connect sock sockAddr
+                   return (sock, sockAddr))
 
 
 -- | Attempt to bind a listening @Socket@ on the given host and port.
