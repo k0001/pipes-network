@@ -59,16 +59,16 @@ data ServerSettings = ServerSettings
 -- new thread for each connection.
 runTCPServer :: P.Proxy p => ServerSettings -> TcpApplication p IO r -> IO r
 runTCPServer (ServerSettings port host) app = E.bracket
-    (bindPort host port)
-    NS.sClose
+    (listen host port)
+    (NS.sClose . fst)
     (forever . serve)
   where
-    serve lsocket = do
-      (socket, _addr) <- NS.accept lsocket
+    serve (listeningSock,_) = do
+      (clientSock,_) <- NS.accept listeningSock
       forkIO $ do
         E.finally
-          (app (socketReader 4096 socket, socketWriter socket))
-          (NS.sClose socket)
+          (app (socketReader 4096 clientSock, socketWriter clientSock))
+          (NS.sClose clientSock)
         return ()
 
 
@@ -103,13 +103,12 @@ getSocket host' port' = do
       NS.sClose
       (\sock -> NS.connect sock (NS.addrAddress addr) >> return sock)
 
--- | Attempt to bind a listening @Socket@ on the given host/port. If no host is
--- given, will use the first address available.
-bindPort :: Maybe String -> Int -> IO NS.Socket
--- TODO Rename this function to something like 'listen'.
--- TODO Host and port parameters might use more comprehensive types.
+
+-- | Attempt to bind a listening @Socket@ on the given host and port.
+-- If no explicit host is given, will use the first address available.
+listen :: Maybe String -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
-bindPort host p = do
+listen host port = do
     let hints = NS.defaultHints
             { NS.addrFlags =
                 [ NS.AI_PASSIVE
@@ -118,14 +117,14 @@ bindPort host p = do
                 ]
             , NS.addrSocketType = NS.Stream
             }
-        port = Just . show $ p
-    addrs <- NS.getAddrInfo (Just hints) host port
+        port' = Just . show $ port
+    addrs <- NS.getAddrInfo (Just hints) host port'
     let
         tryAddrs (addr1:rest@(_:_)) = E.catch
                                       (theBody addr1)
                                       (\(_ :: E.IOException) -> tryAddrs rest)
         tryAddrs (addr1:[])         = theBody addr1
-        tryAddrs _                  = error "bindPort: addrs is empty"
+        tryAddrs _                  = error "listen: addrs is empty"
         theBody addr =
           E.bracketOnError
           (NS.socket
@@ -134,9 +133,10 @@ bindPort host p = do
             (NS.addrProtocol addr))
           NS.sClose
           (\sock -> do
+              let sockAddr = NS.addrAddress addr
               NS.setSocketOption sock NS.ReuseAddr 1
-              NS.bindSocket sock (NS.addrAddress addr)
+              NS.bindSocket sock sockAddr
               NS.listen sock NS.maxListenQueue
-              return sock
+              return (sock, sockAddr)
           )
     tryAddrs addrs
