@@ -1,5 +1,5 @@
 import           Control.Proxy
-import           Control.Proxy.Network
+import           Control.Proxy.Network.TCP
 import qualified Data.ByteString.Char8 as B8
 import           Data.Char (toUpper)
 

@@ -33,7 +33,7 @@ Library
         pipes (== 3.0.*),
         transformers (>= 0.2 && < 0.4)
     Exposed-Modules:
-        Control.Proxy.Network
+        Control.Proxy.Network.TCP
 
     ghc-options: -Wall -fno-warn-unused-do-bind
 

@@ -5,7 +5,7 @@ import System.Environment (getArgs)
 
 import Data.Maybe
 import Control.Proxy
-import Control.Proxy.Network
+import Control.Proxy.Network.TCP
 
 import Control.Applicative
 import Control.Monad

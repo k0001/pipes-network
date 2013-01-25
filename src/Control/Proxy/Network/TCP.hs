@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE KindSignatures #-}
 
-module Control.Proxy.Network (
+
+module Control.Proxy.Network.TCP (
    -- * Simple TCP Application API
    TcpApplication,
    -- ** Client side
