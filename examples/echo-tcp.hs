@@ -1,18 +1,13 @@
 import           Control.Proxy
-import           Control.Proxy.Network.TCP
+import           Control.Proxy.Network.TCP.Simple
 import qualified Data.ByteString.Char8 as B8
 import           Data.Char (toUpper)
 
 
 main :: IO ()
 main = do
-  putStrLn "Listening on 127.0.0.1, TCP port 9999..."
-
-  runTCPServer settings $ \(src, dst) -> do
+  let settings = ServerSettings (Just "127.0.0.1") 9999
+  runServer settings $ \(addr, src, dst) -> do
+    putStrLn $ "Listening on " ++ show addr
     runProxy $ src >-> printD >-> mapD (B8.map toUpper) >-> dst
 
-  where
-    settings = ServerSettings
-                 { serverPort = 9999
-                 , serverHost = Just "127.0.0.1"
-                 }

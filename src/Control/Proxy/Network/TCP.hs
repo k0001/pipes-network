@@ -1,21 +1,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE KindSignatures #-}
-
 
 module Control.Proxy.Network.TCP (
-   -- * Simple TCP Application API
-   TcpApplication,
-   -- ** Client side
-   ClientSettings(..),
-   runTCPClient,
-   -- ** Server side
+   -- * Settings
    ServerSettings(..),
-   runTCPServer,
-
+   ClientSettings(..),
    -- * Socket proxies
    socketReader,
    socketWriter,
-
    -- * Low level API
    listen,
    connect,
@@ -34,7 +25,29 @@ import qualified Network.Socket                            as NS
 import           Network.Socket.ByteString                 (sendAll, recv)
 
 
--- adapted from conduit
+
+-- | Settings for a TCP server.
+--
+-- TODO IPv6 stuff.
+-- TODO Named ports.
+data ServerSettings = ServerSettings
+    { serverHost :: Maybe String
+                    -- ^ Host to bind to. 'Nothing' indicates no preference
+    , serverPort :: Int
+                    -- ^ Port to bind to.
+    } deriving (Eq, Show)
+
+
+-- | Settings for a TCP client.
+--
+-- TODO IPv6 stuff.
+-- TODO Named ports.
+data ClientSettings = ClientSettings
+    { clientHost :: String -- ^ Remote server host.
+    , clientPort :: Int    -- ^ Remote server port.
+    } deriving (Eq, Show)
+
+
 
 -- | Stream data from the socket.
 socketReader :: (P.Proxy p, MonadIO m)
@@ -43,56 +56,13 @@ socketReader bufsize socket () = P.runIdentityP loop
   where loop = do bs <- lift . liftIO $ recv socket bufsize
                   unless (B.null bs) $ P.respond bs >> loop
 
+
 -- | Stream data to the socket.
 socketWriter :: (P.Proxy p, MonadIO m)
              => NS.Socket -> () -> P.Consumer p B.ByteString m ()
 socketWriter socket = P.runIdentityK . P.foreverK $ loop
   where loop = P.request >=> lift . liftIO . sendAll socket
 
-
--- | A simple TCP application.
---
--- It takes a continuation that recieves a 'Producer' to read input data
--- from, and a 'Consumer' to send output data to.
-type TcpApplication (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
-  = (() -> P.Producer p B.ByteString m (), () -> P.Consumer p B.ByteString m ())
-  -> m r
-
-
--- | Settings for a TCP server. It takes a port to listen on, and an optional
--- hostname to bind to.
-data ServerSettings = ServerSettings
-    { serverHost :: Maybe String -- ^ 'Nothing' indicates no preference
-    , serverPort :: Int
-    } deriving (Show, Eq)
-
--- | Run a 'TcpApplication' with the given settings. This function will
--- create a new listening socket, accept connections on it, and spawn a
--- new thread for each connection.
-runTCPServer :: P.Proxy p => ServerSettings -> TcpApplication p IO r -> IO r
-runTCPServer (ServerSettings host port) app = E.bracket
-    (listen host port)
-    (NS.sClose . fst)
-    (forever . serve)
-  where
-    serve (listeningSock,_) = do
-      acceptFork listeningSock $ \(connSock,_) -> do
-        app (socketReader 4096 connSock, socketWriter connSock)
-        return ()
-
-
--- | Settings for a TCP client, specifying how to connect to the server.
-data ClientSettings = ClientSettings
-    { clientHost :: String
-    , clientPort :: Int
-    }
-
--- | Run a 'TcpApplication' by connecting to the specified server.
-runTCPClient :: P.Proxy p => ClientSettings -> TcpApplication p IO r -> IO r
-runTCPClient (ClientSettings host port) app = E.bracket
-    (connect host port)
-    (NS.sClose . fst)
-    (\(s,_) -> app (socketReader 4096 s, socketWriter s))
 
 -- | Attempt to connect to the given host/port.
 connect :: String -> Int -> IO (NS.Socket, NS.SockAddr)
@@ -111,6 +81,7 @@ connect host port = do
       (\sock -> do let sockAddr = NS.addrAddress addr
                    NS.connect sock sockAddr
                    return (sock, sockAddr))
+
 
 
 -- | Attempt to bind a listening @Socket@ on the given host and port.

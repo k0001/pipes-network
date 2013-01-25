@@ -34,6 +34,7 @@ Library
         transformers (>= 0.2 && < 0.4)
     Exposed-Modules:
         Control.Proxy.Network.TCP
+        Control.Proxy.Network.TCP.Simple
 
     ghc-options: -Wall -fno-warn-unused-do-bind
 
