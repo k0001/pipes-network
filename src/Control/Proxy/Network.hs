@@ -50,15 +50,15 @@ type TcpApplication (p :: * -> * -> * -> * -> (* -> *) -> * -> *) m r
 -- | Settings for a TCP server. It takes a port to listen on, and an optional
 -- hostname to bind to.
 data ServerSettings = ServerSettings
-    { serverPort :: Int
-    , serverHost :: Maybe String -- ^ 'Nothing' indicates no preference
-    }
+    { serverHost :: Maybe String -- ^ 'Nothing' indicates no preference
+    , serverPort :: Int
+    } deriving (Show, Eq)
 
 -- | Run a 'TcpApplication' with the given settings. This function will
 -- create a new listening socket, accept connections on it, and spawn a
 -- new thread for each connection.
 runTCPServer :: P.Proxy p => ServerSettings -> TcpApplication p IO r -> IO r
-runTCPServer (ServerSettings port host) app = E.bracket
+runTCPServer (ServerSettings host port) app = E.bracket
     (listen host port)
     (NS.sClose . fst)
     (forever . serve)
@@ -74,13 +74,13 @@ runTCPServer (ServerSettings port host) app = E.bracket
 
 -- | Settings for a TCP client, specifying how to connect to the server.
 data ClientSettings = ClientSettings
-    { clientPort :: Int
-    , clientHost :: String
+    { clientHost :: String
+    , clientPort :: Int
     }
 
 -- | Run a 'TcpApplication' by connecting to the specified server.
 runTCPClient :: P.Proxy p => ClientSettings -> TcpApplication p IO r -> IO r
-runTCPClient (ClientSettings port host) app = E.bracket
+runTCPClient (ClientSettings host port) app = E.bracket
     (connect host port)
     (NS.sClose . fst)
     (\(s,_) -> app (socketReader 4096 s, socketWriter s))
@@ -140,3 +140,4 @@ listen host port = do
               return (sock, sockAddr)
           )
     tryAddrs addrs
+
