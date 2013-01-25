@@ -2,16 +2,27 @@
 {-# LANGUAGE KindSignatures #-}
 
 module Control.Proxy.Network (
+   -- * Simple TCP Application API
    TcpApplication,
-   socketReader,
-   socketWriter,
-   ServerSettings(..),
-   runTCPServer,
+   -- ** Client side
    ClientSettings(..),
    runTCPClient,
+   -- ** Server side
+   ServerSettings(..),
+   runTCPServer,
+
+   -- * Socket proxies
+   socketReader,
+   socketWriter,
+
+   -- * Low level API
+   listen,
+   connect,
+   accept,
+   acceptFork
    ) where
 
-import           Control.Concurrent                        (forkIO)
+import           Control.Concurrent                        (forkIO, ThreadId)
 import qualified Control.Exception                         as E
 import           Control.Monad
 import           Control.Monad.Trans.Class
@@ -64,11 +75,8 @@ runTCPServer (ServerSettings host port) app = E.bracket
     (forever . serve)
   where
     serve (listeningSock,_) = do
-      (clientSock,_) <- NS.accept listeningSock
-      forkIO $ do
-        E.finally
-          (app (socketReader 4096 clientSock, socketWriter clientSock))
-          (NS.sClose clientSock)
+      acceptFork listeningSock $ \(connSock,_) -> do
+        app (socketReader 4096 connSock, socketWriter connSock)
         return ()
 
 
@@ -141,3 +149,21 @@ listen host port = do
           )
     tryAddrs addrs
 
+
+-- | Accept a connection and run an action on the resulting connection socket
+-- and remote address pair, safely closing the connection socket when done. The
+-- given socket must be bound to an address and listening for connections.
+accept :: NS.Socket -> ((NS.Socket, NS.SockAddr) -> IO b) -> IO b
+accept listeningSock f = do
+    client@(cSock,_) <- NS.accept listeningSock
+    E.finally (f client) (NS.sClose cSock)
+
+
+-- | Accept a connection and, on a different thread, run an action on the
+-- resulting connection socket and remote address pair, safely closing the
+-- connection socket when done. The given socket must be bound to an address and
+-- listening for connections.
+acceptFork :: NS.Socket -> ((NS.Socket, NS.SockAddr) -> IO ()) -> IO ThreadId
+acceptFork listeningSock f = do
+    client@(cSock,_) <- NS.accept listeningSock
+    forkIO $ E.finally (f client) (NS.sClose cSock)
