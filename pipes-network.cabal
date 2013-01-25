@@ -31,6 +31,7 @@ Library
         bytestring (== 0.9.*),
         network,
         pipes (>=3.1),
+        pipes-safe (>=1.0),
         transformers (>= 0.2 && < 0.4)
     Exposed-Modules:
         Control.Proxy.Network.TCP
