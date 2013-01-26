@@ -36,7 +36,6 @@ Library
     Exposed-Modules:
         Control.Proxy.Network.TCP
         Control.Proxy.Network.TCP.Simple
-
     ghc-options: -Wall -fno-warn-unused-do-bind
 
 Executable example-echo-tcp
@@ -53,7 +52,24 @@ Executable example-echo-tcp
         pipes-safe (>=1.0),
         transformers (>= 0.2 && < 0.4),
         pipes-network
+  ghc-options: -Wall -fno-warn-unused-do-bind
 
+
+Executable example-interactive-tcp
+  if !flag(examples)
+      Buildable: False
+
+  Hs-source-dirs:      examples
+  Main-is:             interactive-tcp.hs
+  Build-depends:
+        base ==4.5.*,
+        bytestring (== 0.9.*),
+        network,
+        pipes (>=3.1),
+        pipes-safe (>=1.0),
+        transformers (>= 0.2 && < 0.4),
+        pipes-network,
+        parsec (>=3.1.2)
   ghc-options: -Wall -fno-warn-unused-do-bind
 
 
