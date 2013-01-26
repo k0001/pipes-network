@@ -50,6 +50,7 @@ Executable example-echo-tcp
         bytestring (== 0.9.*),
         network,
         pipes (>=3.1),
+        pipes-safe (>=1.0),
         transformers (>= 0.2 && < 0.4),
         pipes-network
 

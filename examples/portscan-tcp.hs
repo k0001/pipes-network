@@ -18,7 +18,7 @@ import qualified Control.Exception as E
 -- | Try to run a TCP client application.
 runTCPClientErr :: Proxy p
                 => ClientSettings
-                -> Application p IO a
+                -> Application p a
                 -> IO (Either E.IOException a)
 runTCPClientErr s a = E.handle (\(e :: E.IOException) -> return $ Left e)
                                (Right <$> runClient s a)
@@ -29,7 +29,7 @@ tcpPortsScan
  :: Proxy p
  => String                       -- ^ Hostname.
  -> [Int]                        -- ^ Ports to scan.
- -> (Int -> Application p IO ()) -- ^ Handle connections to the given port.
+ -> (Int -> Application p ()) -- ^ Handle connections to the given port.
  -> IO [Int]                     -- ^ Returns open ports numbers.
 tcpPortsScan host ports openk = fmap catMaybes $ forM ports $ \port -> do
    let settings = ClientSettings { clientHost = host
