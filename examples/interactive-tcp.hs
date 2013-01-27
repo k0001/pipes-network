@@ -27,19 +27,72 @@ interactive :: Application P.ProxyFast ()
 interactive (addr, src, dst) = do
   putStrLn $ "Incomming connection: " ++ show addr
 
-  let firstTimeP = welcomeP (show addr) >=> helpP
-      interactD = src >-> linesD >-> parseOpD >-> runOpD
+  let firstTimeP = welcomeP (show addr) >=> usageP
+      interactD = src >-> linesD >-> parseRequestD >-> runRequestD
       fullProxy = (firstTimeP >=> interactD) >-> dst
 
   P.runSafeIO . P.runProxy . P.runEitherK $ P.tryK fullProxy
 
 
+--------------------------------------------------------------------------------
+-- Client requests interpreter
+
+type ConnectionId = Int
+
+data Request
+  = Exit
+  | Help
+  | Connect String Int
+  | Disconnect ConnectionId
+  | Connections
+  | Send ConnectionId String
+  deriving (Show, Eq)
+
+-- | Parse input flowing downstream into either a 'Request', or an error message
+parseRequestD
+  :: P.Proxy p
+  => () -> P.Pipe p B8.ByteString (Either B8.ByteString Request) IO r
+parseRequestD = P.runIdentityK . P.foreverK $ \() -> do
+  line <- P.request ()
+  let (line',_) = B8.breakSubstring "\r\n" line
+  case TP.parse parseRequest "" line' of
+    Left _ -> do
+      P.respond $ Left "Bad input. Try again."
+    Right op -> do
+      lift . putStrLn $ "Good input " <> show op
+      P.respond $ Right op
+
+
+-- | Run a 'Request' flowing downstream. Send results downstream, if any.
+runRequestD
+  :: P.Proxy p
+  => () -> P.Pipe p (Either B8.ByteString Request) B8.ByteString IO r
+runRequestD = P.runIdentityK . P.foreverK $ \() -> do
+  eop <- P.request ()
+  -- TODO: DO SOMETHING
+  case eop of
+    Left e   -> P.respond $ "ERR: " <> e <> "\r\n"
+    Right op -> do
+      P.respond $ "OK: " <> (B8.pack $ show op) <> "\r\n"
+      case op of
+        Help -> usageP ()
+        _ -> undefined
+
+
+--------------------------------------------------------------------------------
+-- Mostly boring stuff below here.
+
+-- | Send a greeting message to @who@ downstream.
 welcomeP :: (Monad m, P.Proxy p) => String -> () -> p a' a () B8.ByteString m ()
 welcomeP who () = P.respond $
    "| Welcome to the non-magical TCP client, " <> B8.pack who <> ".\r\n"
 
-helpP :: (Monad m, P.Proxy p) => () -> p a' a () B8.ByteString m ()
-helpP () = P.respond
+-- | Send a usage instructions downstream.
+usageP :: (Monad m, P.Proxy p) => () -> p a' a () B8.ByteString m ()
+usageP () = P.respond usageMsg
+
+usageMsg :: B8.ByteString
+usageMsg =
    "| Enter one of the following commands:\r\n\
    \|   HELP\r\n\
    \|     Show this message.\r\n\
@@ -57,36 +110,6 @@ helpP () = P.respond
    \|     Exit this interactive session.\r\n"
 
 
-
-runOpD :: P.Proxy p => () -> P.Pipe p (Either B8.ByteString InteractiveOp) B8.ByteString IO r
-runOpD = P.runIdentityK . P.foreverK $ \() -> do
-  eop <- P.request ()
-  -- TODO: DO SOMETHING
-  case eop of
-    Left e   -> P.respond $ "ERR: " <> e <> "\r\n"
-    Right op -> do
-      P.respond $ "OK: " <> (B8.pack $ show op) <> "\r\n"
-      case op of
-        Help -> helpP ()
-        _ -> undefined
-
-
-
-type ConnectionId = Int
-
--------------------------------------------------------------------------------
--- Input parsing
-
-data InteractiveOp
-  = Exit
-  | Help
-  | Connect String Int
-  | Disconnect ConnectionId
-  | Connections
-  | Send ConnectionId String
-  deriving (Show, Eq)
-
-
 -- | Split raw input flowing downstream into individual lines.
 --
 -- Probably not an efficient implementation, and maybe even wrong.
@@ -102,23 +125,11 @@ linesD = P.runIdentityK (go B8.empty) where
       (_,_) -> P.respond p >> use (B8.drop 2 s) -- 2 first suffix chars are \r\n
 
 
--- | Parse line input flowing downstream into either an 'InteractiveOp', or an
--- error message.
-parseOpD :: P.Proxy p => () -> P.Pipe p B8.ByteString (Either B8.ByteString InteractiveOp) IO r
-parseOpD = P.runIdentityK . P.foreverK $ \() -> do
-  line <- P.request ()
-  let (line',_) = B8.breakSubstring "\r\n" line
-  case TP.parse parseInteractiveOp "" line' of
-    Left _ -> do
-      P.respond $ Left "Bad input. Try again."
-    Right op -> do
-      lift . putStrLn $ "Good input " <> show op
-      P.respond $ Right op
+-------------------------------------------------------------------------------
+-- Input parsing
 
-
-
-parseInteractiveOp :: TP.Parser InteractiveOp
-parseInteractiveOp = TP.choice allt <* TP.eof
+parseRequest :: TP.Parser Request
+parseRequest = TP.choice allt <* TP.eof
   where
     allt        = [exit, help, TP.try connect, disconnect, connections, send]
     exit        = TP.string "EXIT" *> pure Exit
