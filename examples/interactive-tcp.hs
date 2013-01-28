@@ -3,7 +3,6 @@
 module Main where
 
 import           Control.Exception                (throwIO)
-import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.Class        (lift)
 import           Control.Proxy                    ((>->))
@@ -15,8 +14,6 @@ import           Control.Proxy.Network.TCP.Simple (Application, runServer)
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>))
-import qualified Text.Parsec                      as TP
-import qualified Text.Parsec.ByteString           as TP (Parser)
 import qualified Network.Socket                   as NS (SockAddr)
 
 
@@ -63,7 +60,7 @@ data Request
   | Connections
   | Send ConnectionId String
   | Crash
-  deriving (Show, Eq)
+  deriving (Read, Show, Eq)
 
 
 -- | Parse proper input flowing downstream into a 'Request'.
@@ -73,9 +70,9 @@ parseInputD
 parseInputD = P.runIdentityK . P.foreverK $ \() -> do
   line <- P.request ()
   let (line',_) = B8.breakSubstring "\r\n" line
-  case TP.parse parseRequest "" line' of
-    Left _  -> P.respond $ Left line'
-    Right r -> P.respond $ Right r
+  case parseRequest (B8.unpack line') of
+    Nothing -> P.respond $ Left line'
+    Just r  -> P.respond $ Right r
 
 handleInputD :: P.Proxy p => () -> P.Pipe (InteractiveP p) (Either B8.ByteString Request) B8.ByteString IO ()
 handleInputD () = loop where
@@ -139,6 +136,7 @@ runRequestD () = do
     remConnection connId = P.liftP . PS.modify $ \conns ->
       filter ((/=connId) . fst) conns -- meh.
 
+
 --------------------------------------------------------------------------------
 -- Mostly boring stuff below here.
 
@@ -149,28 +147,30 @@ welcomeP who () = P.respond $
 
 -- | Send a usage instructions downstream.
 usageP :: (Monad m, P.Proxy p) => () -> p a' a () B8.ByteString m ()
-usageP () = P.respond usageMsg
-
-usageMsg :: B8.ByteString
-usageMsg =
+usageP () = P.respond 
    "| Enter one of the following commands:\r\n\
-   \|   HELP\r\n\
+   \|   Help\r\n\
    \|     Show this message.\r\n\
-   \|   CRASH\r\n\
+   \|   Crash\r\n\
    \|     Force an unexpected crash in the server end of this TCP session.\r\n\
-   \|   CONNECT <IPv4> <PORT-NUMBER>\r\n\
+   \|   Connect \"<IPv4>\" <PORT-NUMBER>\r\n\
    \|     Establish a TCP connection to the given TCP server.\r\n\
    \|     The ID of the new connection is shown on success.\r\n\
-   \|   DISCONNET <ID>\r\n\
+   \|   Disconnect <ID>\r\n\
    \|     Close a the established TCP connection identified by <ID>.\r\n\
-   \|   CONNECTIONS\r\n\
+   \|   Connections\r\n\
    \|     Shows all established TCP connections and their <ID>s.\r\n\
-   \|   SEND <ID> <LINE>\r\n\
+   \|   Send <ID> \"<LINE>\"\r\n\
    \|     Sends <LINE> followed by \\r\\n to the established TCP\r\n\
    \|     connection identified by <ID>. Any response is shown.\r\n\
-   \|   EXIT\r\n\
+   \|   Exit\r\n\
    \|     Exit this interactive session.\r\n"
 
+
+parseRequest :: String -> Maybe Request
+parseRequest s = case reads s of
+  [(r,"")] -> Just r
+  _        -> Nothing
 
 -- | Split raw input flowing downstream into individual lines.
 --
@@ -186,36 +186,4 @@ linesD = P.runIdentityK (go B8.empty) where
       (0,_) -> P.respond B8.empty >> use (B8.drop 2 s) -- leading newline
       (_,_) -> P.respond p >> use (B8.drop 2 s) -- 2 first suffix chars are \r\n
 
-
--------------------------------------------------------------------------------
--- Input parsing
-
-parseRequest :: TP.Parser Request
-parseRequest = TP.choice (TP.try <$> allt) <* TP.eof
-  where
-    allt        = [exit, help, crash, connect, disconnect, connections, send]
-    exit        = TP.string "EXIT" *> pure Exit
-    help        = TP.string "HELP" *> pure Help
-    crash       = TP.string "CRASH" *> pure Crash
-    connect     = TP.string "CONNECT " *> (uncurry Connect <$> parseHostAndPort)
-    disconnect  = TP.string "DISCONNECT " *> (Disconnect <$> parseConnectionId)
-    connections = TP.string "CONNECTIONS" *> pure Connections
-    send        = TP.string "SEND " *> sendBody
-    sendBody    = Send <$> (parseConnectionId <* TP.space)
-                       <*> (TP.manyTill TP.anyChar TP.eof)
-
-parseConnectionId :: TP.Parser ConnectionId
-parseConnectionId = read <$> TP.many1 TP.digit :: TP.Parser ConnectionId
-
-parseHostAndPort :: TP.Parser (String, Int)
-parseHostAndPort = do -- Ugly code. I'll get better at using Parsec some day.
-  let hostnameChar = TP.choice [TP.alphaNum, TP.char '.', TP.char '-']
-  hostname <- TP.manyTill hostnameChar TP.space
-  case hostname of
-    [] -> mzero
-    _  -> do
-      port <- TP.many1 TP.digit
-      case port of
-        [] -> mzero
-        _  -> return (hostname, read port)
 
