@@ -29,6 +29,7 @@ main = do
 -- XXX StateP should really be StateT. And maybe even ReaderP should be ReaderT
 type InteractiveP p = PR.ReaderP NS.SockAddr (PS.StateP [(Int, (String, Int))] p)
 
+
 interactive :: Application P.ProxyFast ()
 interactive (addr, src, dst) = do
   let saddr = show addr
@@ -43,11 +44,9 @@ interactive (addr, src, dst) = do
                      $ session
   case eio of
     Left e  -> do
-      putStrLn $ "[ERR] Failure in interactive session with " ++ saddr
-      throwIO e
+      putStrLn $ "[ERR] Failure in interactive session with " ++ saddr ++ ": " ++ show e
     Right _ -> do
       putStrLn $ "[OK] Closing interactive session with " ++ saddr
-      return ()
 
 
 
@@ -63,6 +62,7 @@ data Request
   | Disconnect ConnectionId
   | Connections
   | Send ConnectionId String
+  | Crash
   deriving (Show, Eq)
 
 
@@ -107,22 +107,27 @@ runRequestD () = do
     case r of
       Exit -> P.respond "| Bye.\r\n"
       Help -> usageP ()
+      Crash -> do
+        P.respond "| Crash requested. Your connection will probably drop,\r\n\
+                  \| but hopefully the server will stay alive and you'll\r\n\
+                  \| be able to connect again. Good luck.\r\n"
+        lift . throwIO $ userError "Crash request"
       Connect h p -> do
         connId <- addConnection h p
         P.respond $ "| Added connection ID " <> B8.pack (show connId)
                     <> " to " <> B8.pack (show (h, p)) <> "\r\n"
-        error "TODO"
+        lift . throwIO $ userError "TODO"
       Disconnect connId -> do
         remConnection connId
         P.respond $ "| Removed connection ID " <> B8.pack (show connId) <> "\r\n"
-        error "TODO"
+        lift . throwIO $ userError "TODO"
       Connections -> do
         conns <- P.liftP PS.get
         P.respond $ "| Connections [(ID, (IPv4, PORT-NUMBER))]:\r\n|   "
                     <> B8.pack (show conns) <> "\r\n"
       Send connId line -> do
         P.respond $ "| Sending to connection ID " <> B8.pack (show connId) <> "\r\n"
-        error "TODO"
+        lift . throwIO $ userError "TODO"
   where
     addConnection host port = P.liftP $ do
       conns <- PS.get
@@ -151,6 +156,8 @@ usageMsg =
    "| Enter one of the following commands:\r\n\
    \|   HELP\r\n\
    \|     Show this message.\r\n\
+   \|   CRASH\r\n\
+   \|     Force an unexpected crash in the server end of this TCP session.\r\n\
    \|   CONNECT <IPv4> <PORT-NUMBER>\r\n\
    \|     Establish a TCP connection to the given TCP server.\r\n\
    \|     The ID of the new connection is shown on success.\r\n\
@@ -184,11 +191,12 @@ linesD = P.runIdentityK (go B8.empty) where
 -- Input parsing
 
 parseRequest :: TP.Parser Request
-parseRequest = TP.choice allt <* TP.eof
+parseRequest = TP.choice (TP.try <$> allt) <* TP.eof
   where
-    allt        = [exit, help, TP.try connect, disconnect, connections, send]
+    allt        = [exit, help, crash, connect, disconnect, connections, send]
     exit        = TP.string "EXIT" *> pure Exit
     help        = TP.string "HELP" *> pure Help
+    crash       = TP.string "CRASH" *> pure Crash
     connect     = TP.string "CONNECT " *> (uncurry Connect <$> parseHostAndPort)
     disconnect  = TP.string "DISCONNECT " *> (Disconnect <$> parseConnectionId)
     connections = TP.string "CONNECTIONS" *> pure Connections
