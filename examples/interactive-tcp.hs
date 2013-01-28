@@ -2,11 +2,14 @@
 
 module Main where
 
+import           Control.Exception                (throwIO)
 import           Control.Applicative
 import           Control.Monad
-import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Class        (lift)
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
+import qualified Control.Proxy.Trans.State        as PS
+import qualified Control.Proxy.Trans.Reader       as PR
 import           Control.Proxy.Network.TCP        (ServerSettings (..))
 import           Control.Proxy.Network.TCP.Simple (Application, runServer)
 import qualified Control.Proxy.Safe               as P
@@ -14,24 +17,38 @@ import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>))
 import qualified Text.Parsec                      as TP
 import qualified Text.Parsec.ByteString           as TP (Parser)
+import qualified Network.Socket                   as NS (SockAddr)
 
 
 main :: IO ()
 main = do
-  putStrLn "TCP server listening on 127.0.0.1:9999"
+  putStrLn "[OK] TCP server listening on 127.0.0.1:9999"
   runServer (ServerSettings (Just "127.0.0.1") 9999) interactive
 
 
+-- XXX StateP should really be StateT. And maybe even ReaderP should be ReaderT
+type InteractiveP p = PR.ReaderP NS.SockAddr (PS.StateP [(Int, (String, Int))] p)
 
 interactive :: Application P.ProxyFast ()
 interactive (addr, src, dst) = do
-  putStrLn $ "Incomming connection: " ++ show addr
+  let saddr = show addr
+  putStrLn $ "[OK] Starting interactive session with " ++ saddr
 
   let firstTimeP = welcomeP (show addr) >=> usageP
-      interactD = src >-> linesD >-> parseRequestD >-> runRequestD
-      fullProxy = (firstTimeP >=> interactD) >-> dst
+      interactD  = (P.mapP . P.mapP) src >-> linesD >-> parseInputD >-> handleInputD
+      session    = (firstTimeP >=> interactD) >-> (P.mapP . P.mapP) dst
 
-  P.runSafeIO . P.runProxy . P.runEitherK $ P.tryK fullProxy
+  eio <- P.trySafeIO . P.runProxy . P.runEitherK . P.tryK
+                     . PS.evalStateK [] . PR.runReaderK addr
+                     $ session
+  case eio of
+    Left e  -> do
+      putStrLn $ "[ERR] Failure in interactive session with " ++ saddr
+      throwIO e
+    Right _ -> do
+      putStrLn $ "[OK] Closing interactive session with " ++ saddr
+      return ()
+
 
 
 --------------------------------------------------------------------------------
@@ -48,36 +65,74 @@ data Request
   | Send ConnectionId String
   deriving (Show, Eq)
 
--- | Parse input flowing downstream into either a 'Request', or an error message
-parseRequestD
+
+-- | Parse proper input flowing downstream into a 'Request'.
+parseInputD
   :: P.Proxy p
   => () -> P.Pipe p B8.ByteString (Either B8.ByteString Request) IO r
-parseRequestD = P.runIdentityK . P.foreverK $ \() -> do
+parseInputD = P.runIdentityK . P.foreverK $ \() -> do
   line <- P.request ()
   let (line',_) = B8.breakSubstring "\r\n" line
   case TP.parse parseRequest "" line' of
-    Left _ -> do
-      P.respond $ Left "Bad input. Try again."
-    Right op -> do
-      lift . putStrLn $ "Good input " <> show op
-      P.respond $ Right op
+    Left _  -> P.respond $ Left line'
+    Right r -> P.respond $ Right r
 
+handleInputD :: P.Proxy p => () -> P.Pipe (InteractiveP p) (Either B8.ByteString Request) B8.ByteString IO ()
+handleInputD () = loop where
+  loop = do
+    er <- P.request ()
+    addr <- PR.ask
+    case er of
+      Left _  -> do
+        lift . putStrLn $ "[INFO] Bad request from " <> show addr
+        P.respond $ "| Bad request. See HELP for usage instructions.\r\n"
+        loop
+      Right r -> do
+        lift . putStrLn $ "[INFO] Request from " <> show addr <> ": " <> show r
+        let p = const (P.respond r) >-> runRequestD
+        -- XXX We should really use StateT instead of StateP, but either
+        -- pipes-safe doesn't seem to handle non-IO base monads yet or I'm
+        -- missing something, so we perform this state preserving magic. Sorry.
+        s <- P.liftP PS.get
+        (_,s') <- PS.runStateP s . PR.runReaderP addr $ p ()
+        P.liftP $ PS.put s'
+        case r of
+          Exit -> return ()
+          _    -> loop
 
 -- | Run a 'Request' flowing downstream. Send results downstream, if any.
-runRequestD
-  :: P.Proxy p
-  => () -> P.Pipe p (Either B8.ByteString Request) B8.ByteString IO r
-runRequestD = P.runIdentityK . P.foreverK $ \() -> do
-  eop <- P.request ()
-  -- TODO: DO SOMETHING
-  case eop of
-    Left e   -> P.respond $ "ERR: " <> e <> "\r\n"
-    Right op -> do
-      P.respond $ "OK: " <> (B8.pack $ show op) <> "\r\n"
-      case op of
-        Help -> usageP ()
-        _ -> undefined
-
+runRequestD :: P.Proxy p => () -> P.Pipe (InteractiveP p) Request B8.ByteString IO ()
+runRequestD () = do
+    r <- P.request ()
+    case r of
+      Exit -> P.respond "| Bye.\r\n"
+      Help -> usageP ()
+      Connect h p -> do
+        connId <- addConnection h p
+        P.respond $ "| Added connection ID " <> B8.pack (show connId)
+                    <> " to " <> B8.pack (show (h, p)) <> "\r\n"
+        error "TODO"
+      Disconnect connId -> do
+        remConnection connId
+        P.respond $ "| Removed connection ID " <> B8.pack (show connId) <> "\r\n"
+        error "TODO"
+      Connections -> do
+        conns <- P.liftP PS.get
+        P.respond $ "| Connections [(ID, (IPv4, PORT-NUMBER))]:\r\n|   "
+                    <> B8.pack (show conns) <> "\r\n"
+      Send connId line -> do
+        P.respond $ "| Sending to connection ID " <> B8.pack (show connId) <> "\r\n"
+        error "TODO"
+  where
+    addConnection host port = P.liftP $ do
+      conns <- PS.get
+      case conns of
+        []    -> PS.put [(1, (host, port))] >> return 1
+        (x:_) -> do let connId = fst x + 1
+                    PS.put $ (connId, (host, port)):conns
+                    return connId
+    remConnection connId = P.liftP . PS.modify $ \conns ->
+      filter ((/=connId) . fst) conns -- meh.
 
 --------------------------------------------------------------------------------
 -- Mostly boring stuff below here.
