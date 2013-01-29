@@ -19,7 +19,7 @@ import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>), mconcat)
 import           Data.Maybe                       (isJust)
-import qualified Network.Socket                   as NS (SockAddr, Socket)
+import qualified Network.Socket                   as NS (sClose, SockAddr, Socket)
 
 
 main :: IO ()
@@ -44,11 +44,15 @@ interactive (addr, src, dst) = do
       psession   = (firstTimeS >=> (src' >-> interactD)) >-> dst'
       src'       = (P.raiseK . P.tryK) src
       dst'       = (P.raiseK . P.tryK) dst
-  eio <- P.trySafeIO . evalInteractionT addr []
-                     . P.runProxy . P.runEitherK $ psession
+  (eio, conns) <- P.trySafeIO . runInteractionT addr []
+                              . P.runProxy . P.runEitherK $ psession
   case eio of
     Left ex  -> logClient' addr "ERR"  $ "Session exception: " <> show ex
     Right _  -> logClient' addr "INFO" $ "Session successfully ended."
+
+  logClient' addr "INFO" "Closing remaining connections..."
+  mapM_ (closeConnection . snd) conns
+
 
 
 
@@ -122,9 +126,12 @@ runRequestD () = do
              logClient "INFO" msg
              sendLine [msg]
       Disconnect connId -> do
-        conn <- lift $ popConnection connId
-        sendLine [ "Removed connection ID ", show connId ]
-        io . E.throwIO $ userError "TODO"
+        mconn <- lift $ popConnection connId
+        case mconn of
+          Nothing -> sendLine [ "No such connection ID." ]
+          Just conn@(_,a) -> do
+            io $ closeConnection conn
+            sendLine ["Closed connection ID ", show connId, " to ", show a]
       Connections -> do
         let showConn (n,(_,a)) = "  " <> show n <> ": " <> show a
         conns <- lift $ S.get
@@ -213,10 +220,6 @@ runInteractionT :: Monad m => NS.SockAddr -> Connections
                 -> InteractionT m a -> m (a, Connections)
 runInteractionT e s (InteractionT m) = S.runStateT (R.runReaderT m e) s
 
-evalInteractionT :: Monad m => NS.SockAddr -> Connections
-                 -> InteractionT m b -> m b
-evalInteractionT e s = liftM fst . runInteractionT e s
-
 instance MonadTrans InteractionT where
   lift = InteractionT . lift . lift
 
@@ -260,4 +263,12 @@ io = P.raise . P.tryIO
 
 logClient :: P.Proxy p => String -> String -> (P.ExceptionP p) a' a b' b (InteractionT P.SafeIO) ()
 logClient level msg = lift R.ask >>= \addr -> io $ logClient' addr level msg
+
+
+closeConnection :: Connection -> IO ()
+closeConnection (sock,addr) = do
+  E.catch (NS.sClose sock) $ \(ex :: E.SomeException) -> do
+      logMsg "ERR" $ mconcat [ "Exception closing connection to "
+                             , show addr, ": ", show ex ]
+
 
