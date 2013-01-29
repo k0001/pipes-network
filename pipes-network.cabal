@@ -68,6 +68,7 @@ Executable example-interactive-tcp
         pipes (>=3.1),
         pipes-safe (>=1.0),
         transformers (>= 0.2 && < 0.4),
+        monads-tf (>= 0.1.0.1),
         pipes-network
   ghc-options: -Wall -fno-warn-unused-do-bind
 
