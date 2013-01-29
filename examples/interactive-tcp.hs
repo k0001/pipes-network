@@ -1,31 +1,34 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
 import           Control.Applicative
-import           Control.Exception                (throwIO)
+import qualified Control.Exception                as E
 import           Control.Monad
 import qualified Control.Monad.Reader             as R
 import qualified Control.Monad.State              as S
 import           Control.Monad.Trans.Class
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
-import           Control.Proxy.Network.TCP        (ServerSettings (..))
+import           Control.Proxy.Network.TCP        (ServerSettings (..), connect)
 import           Control.Proxy.Network.TCP.Simple (Application, runServer)
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>), mconcat)
-import qualified Network.Socket                   as NS (SockAddr)
+import           Data.Maybe                       (isJust)
+import qualified Network.Socket                   as NS (SockAddr, Socket)
 
 
 main :: IO ()
 main = do
-  logMsg "OK" "TCP server listening on 127.0.0.1:9999"
+  logMsg "INFO" "Starting TCP server listening on 127.0.0.1:9999"
   runServer (ServerSettings (Just "127.0.0.1") 9999) interactive
 
-type Connections = [(Int, (String, Int))]
+type Connection = (NS.Socket, NS.SockAddr)
+type Connections = [(Int, Connection)]
 
 newtype InteractionT m a = InteractionT
         { unInteractionT :: R.ReaderT NS.SockAddr (S.StateT Connections m) a }
@@ -34,8 +37,7 @@ newtype InteractionT m a = InteractionT
 
 interactive :: Application P.ProxyFast ()
 interactive (addr, src, dst) = do
-  let saddr = show addr
-  logMsg "OK" $ "Starting interactive session with " <> saddr
+  logClient' addr "INFO" "Starting interactive session"
 
   let firstTimeS = welcomeP (show addr) >=> usageP
       interactD  = linesD >-> parseInputD >-> handleInputD
@@ -45,10 +47,8 @@ interactive (addr, src, dst) = do
   eio <- P.trySafeIO . evalInteractionT addr []
                      . P.runProxy . P.runEitherK $ psession
   case eio of
-    Left e  -> do
-      logMsg "ERR" $ "Failure in session with " <> saddr <> ": " <> show e
-    Right _ -> do
-      logMsg "ERR" $ "Closing session with " <> saddr
+    Left ex  -> logClient' addr "ERR"  $ "Session exception: " <> show ex
+    Right _  -> logClient' addr "INFO" $ "Session successfully ended."
 
 
 
@@ -88,16 +88,15 @@ handleInputD () = loop where
     addr <- lift R.ask
     case er of
       Left _  -> do
-        io . logMsg "INFO" $ "Bad request from " <> show addr
+        logClient "INFO" $ "Bad request"
         sendLine $ ["Bad request. See 'Help' for usage instructions."]
         loop
       Right r -> do
-        io . logMsg "INFO" $ "Request from " <> show addr <> ": " <> show r
+        logClient "INFO" $ "Request: " <> show r
         (const (P.respond r) >-> runRequestD) ()
         case r of
           Exit -> return ()
           _    -> loop
-  io = P.raise . P.tryIO
 
 runRequestD
   :: (P.Proxy p)
@@ -109,33 +108,33 @@ runRequestD () = do
       Help -> usageP ()
       Crash -> do
         sendLine [ "Crashing. Connection will drop. Try connecting again." ]
-        io . throwIO $ userError "Crash request"
-      Connect h p -> do
-        connId <- addConnection h p
-        sendLine [ "Added connection ID ", show connId, " to ", show (h, p) ]
-        io . throwIO $ userError "TODO"
+        io . E.throwIO $ userError "Crash request"
+      Connect host port -> do
+        econn <- io . E.try $ connect host port
+        case econn of
+          Left (ex :: E.SomeException) -> do
+             let msg = "Can't connect " <> show (host,port) <> ": " <> show ex
+             logClient "WARN" msg
+             sendLine [msg]
+          Right conn@(_,addr) -> do
+             connId <- lift $ addConnection conn
+             let msg = "Connected to " <> show addr <> ". ID " <> show connId
+             logClient "INFO" msg
+             sendLine [msg]
       Disconnect connId -> do
-        remConnection connId
+        conn <- lift $ popConnection connId
         sendLine [ "Removed connection ID ", show connId ]
-        io . throwIO $ userError "TODO"
+        io . E.throwIO $ userError "TODO"
       Connections -> do
+        let showConn (n,(_,a)) = "  " <> show n <> ": " <> show a
         conns <- lift $ S.get
-        sendLine [ "Connections [(ID, (IPv4, PORT-NUMBER))]:" ]
-        sendLines [ ("  "<>) . show <$> conns ]
+        case conns of
+          [] -> sendLine  $ ["No connections."]
+          _  -> sendLines $ ["Connections:"] : fmap (pure . showConn) conns
       Send connId line -> do
         sendLine [ "Sending to connection ID ", show connId ]
-        io . throwIO $ userError "TODO"
-  where
-    io = P.raise . P.tryIO
-    addConnection host port = lift $ do
-      conns <- S.get
-      case conns of
-        []    -> S.put [(1, (host, port))] >> return 1
-        (x:_) -> do let connId = fst x + 1
-                    S.put $ (connId, (host, port)):conns
-                    return connId
-    remConnection connId = lift . S.modify $ \conns ->
-      filter ((/=connId) . fst) conns -- meh.
+        io . E.throwIO $ userError "TODO"
+
 
 
 --------------------------------------------------------------------------------
@@ -176,7 +175,7 @@ parseRequest s = case reads s of
 
 -- | Split raw input flowing downstream into individual lines.
 --
--- XXX Probably not an efficient implementation, and maybe even wrong.
+-- XXX Probably innefficient and wrong.
 linesD :: (P.Proxy p, Monad m) => () -> P.Pipe p B8.ByteString B8.ByteString m r
 linesD = P.runIdentityK (go B8.empty) where
   go buf () = P.request () >>= use . (buf <>)
@@ -202,6 +201,12 @@ sendLines = P.respond . mconcat . fmap showLine
 logMsg :: String -> String -> IO ()
 logMsg level msg = putStrLn $ "[" <> level <> "] " <> msg
 
+logClient' :: NS.SockAddr -> String -> String -> IO ()
+logClient' addr level msg = logMsg level msg' where
+    msg' = "<Client session " <> show addr <> "> " <> msg
+
+
+--------------------------------------------------------------------------------
 -- InteractionT stuff
 
 runInteractionT :: Monad m => NS.SockAddr -> Connections
@@ -224,4 +229,35 @@ instance Monad m => S.MonadState (InteractionT m) where
   type StateType (InteractionT m) = Connections
   get = InteractionT . lift $ S.get
   put = InteractionT . lift . S.put
+
+
+--------------------------------------------------------------------------------
+-- API for our precarious 'Connections' container within 'InteractionT'.
+-- addConnection :: Monad m => Connection -> InteractionT m a
+
+addConnection :: Monad m => Connection -> InteractionT m ConnectionId
+addConnection conn = do
+  conns <- S.get
+  case conns of
+    []         -> S.put [(1, conn)]         >> return 1
+    ((n,_):_)  -> S.put ((n+1, conn):conns) >> return (n+1)
+
+getConnection :: Monad m => ConnectionId -> InteractionT m (Maybe Connection)
+getConnection connId = lookup connId `liftM` S.get
+
+popConnection :: Monad m => ConnectionId -> InteractionT m (Maybe Connection)
+popConnection connId = do -- dggggh
+    mx <- getConnection connId
+    when (isJust mx) $ do
+      S.modify $ filter ((/=connId) . fst)
+    return mx
+
+
+--------------------------------------------------------------------------------
+
+io :: P.Proxy p => IO r -> (P.ExceptionP p) a' a b' b (InteractionT P.SafeIO) r
+io = P.raise . P.tryIO
+
+logClient :: P.Proxy p => String -> String -> (P.ExceptionP p) a' a b' b (InteractionT P.SafeIO) ()
+logClient level msg = lift R.ask >>= \addr -> io $ logClient' addr level msg
 
