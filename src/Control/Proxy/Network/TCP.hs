@@ -35,7 +35,7 @@ import           Network.Socket.ByteString                 (sendAll, recv)
 -- TODO IPv6 stuff.
 -- TODO Named ports.
 data ServerSettings = ServerSettings
-    { serverHost :: Maybe String
+    { serverHost :: Maybe NS.HostName
                     -- ^ Host to bind to. 'Nothing' indicates no preference
     , serverPort :: Int
                     -- ^ Port to bind to.
@@ -47,8 +47,8 @@ data ServerSettings = ServerSettings
 -- TODO IPv6 stuff.
 -- TODO Named ports.
 data ClientSettings = ClientSettings
-    { clientHost :: String -- ^ Remote server host.
-    , clientPort :: Int    -- ^ Remote server port.
+    { clientHost :: NS.HostName -- ^ Remote server host.
+    , clientPort :: Int         -- ^ Remote server port.
     } deriving (Eq, Show)
 
 
@@ -139,7 +139,7 @@ acceptFork listeningSock f = do
 --------------------------------------------------------------------------------
 
 -- | Attempt to connect to the given host/port.
-connect :: String -> Int -> IO (NS.Socket, NS.SockAddr)
+connect :: NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 connect host port = do
     let hints = NS.defaultHints {
@@ -160,7 +160,7 @@ connect host port = do
 
 -- | Attempt to bind a listening @Socket@ on the given host and port.
 -- If no explicit host is given, will use the first address available.
-listen :: Maybe String -> Int -> IO (NS.Socket, NS.SockAddr)
+listen :: Maybe NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 listen host port = do
     let hints = NS.defaultHints
