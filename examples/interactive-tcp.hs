@@ -13,7 +13,8 @@ import qualified Control.Monad.State              as S
 import           Control.Monad.Trans.Class
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
-import           Control.Proxy.Network.TCP        (ServerSettings (..), connect)
+import           Control.Proxy.Network.TCP        (ServerSettings (..), connect
+                                                  ,socketP, socketC)
 import           Control.Proxy.Network.TCP.Simple (Application, runServer)
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
@@ -68,6 +69,7 @@ data Request
   | Disconnect ConnectionId
   | Connections
   | Send ConnectionId String
+  | Receive ConnectionId Int
   | Crash
   deriving (Read, Show, Eq)
 
@@ -84,12 +86,11 @@ parseInputD = P.runIdentityK . P.foreverK $ \() -> do
     Just r  -> P.respond $ Right r
 
 handleInputD
-  :: (P.Proxy p)
+  :: (P.CheckP p)
   => () -> P.Pipe (P.ExceptionP p) (Either B8.ByteString Request) B8.ByteString (InteractionT P.SafeIO) ()
 handleInputD () = loop where
   loop = do
     er <- P.request ()
-    addr <- lift R.ask
     case er of
       Left _  -> do
         logClient "INFO" $ "Bad request"
@@ -103,7 +104,7 @@ handleInputD () = loop where
           _    -> loop
 
 runRequestD
-  :: (P.Proxy p)
+  :: (P.CheckP p)
   => () -> P.Pipe (P.ExceptionP p) Request B8.ByteString (InteractionT P.SafeIO) ()
 runRequestD () = do
     r <- P.request ()
@@ -138,10 +139,23 @@ runRequestD () = do
         case conns of
           [] -> sendLine  $ ["No connections."]
           _  -> sendLines $ ["Connections:"] : fmap (pure . showConn) conns
-      Send connId line -> do
-        sendLine [ "Sending to connection ID ", show connId ]
-        io . E.throwIO $ userError "TODO"
-
+      Send connId msg -> do
+        mconn <- lift $ getConnection connId
+        case mconn of
+          Nothing -> sendLine [ "No such connection ID." ]
+          Just (sock,addr) -> do
+            let bytes = B8.pack msg
+            sendLine ["Sending ", show (B8.length bytes)," bytes to ",show addr]
+            (const (P.respond bytes)
+               >-> (P.raiseK . P.tryK) (socketC sock)
+               >-> P.unitU) ()
+      Receive connId len -> do
+        mconn <- lift $ getConnection connId
+        case mconn of
+          Nothing -> sendLine [ "No such connection ID." ]
+          Just (sock,addr) -> do
+            sendLine ["Receiving ", show len, " bytes from ", show addr]
+            (P.unitD >-> (P.raiseK . P.tryK) (socketP len sock)) ()
 
 
 --------------------------------------------------------------------------------
@@ -166,9 +180,9 @@ usageP () = sendLines . map pure $
   , "    Close a the established TCP connection identified by <ID>."
   , "  Connections"
   , "    Shows all established TCP connections and their <ID>s."
-  , "  Send <ID> \"<LINE>\""
-  , "    Sends <LINE> followed by \\r\\n to the established TCP"
-  , "    connection identified by <ID>. Any response is shown."
+  , "  Send <ID> \"<MESSAGE>\""
+  , "    Sends <MESSAGE> followed to the established TCP connection"
+  , "    identified by <ID>. Any response is shown."
   , "  Exit"
   , "    Exit this interactive session."
   ]
@@ -267,6 +281,7 @@ logClient level msg = lift R.ask >>= \addr -> io $ logClient' addr level msg
 
 closeConnection :: Connection -> IO ()
 closeConnection (sock,addr) = do
+  logMsg "INFO" $ "Closing connection to " <> show addr
   E.catch (NS.sClose sock) $ \(ex :: E.SomeException) -> do
       logMsg "ERR" $ mconcat [ "Exception closing connection to "
                              , show addr, ": ", show ex ]
