@@ -7,7 +7,6 @@ module Control.Proxy.Network.TCP (
    -- * Socket proxies
    socketProducer,
    socketConsumer,
-   socketServer,
    -- * Safe socket usage
    withClient,
    withServer,
@@ -116,14 +115,6 @@ socketConsumer socket = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . liftIO . sendAll socket
 
 
--- | Socket Server. Stream data to and from the socket.
-socketServer :: (P.Proxy p, MonadIO m)
-             => Int -> NS.Socket
-             -> B.ByteString -> P.Server p B.ByteString B.ByteString m ()
-socketServer bufsize socket = P.runIdentityK loop where
-    loop b' = do
-      bs <- lift . liftIO $ sendAll socket b' >> recv socket bufsize
-      unless (B.null bs) $ P.respond bs >>= loop
 
 
 --------------------------------------------------------------------------------
