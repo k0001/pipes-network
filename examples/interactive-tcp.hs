@@ -149,13 +149,17 @@ runRequestD () = do
             (const (P.respond bytes)
                >-> (P.raiseK . P.tryK) (socketC sock)
                >-> P.unitU) ()
+            sendLine ["Sent."]
       Receive connId len -> do
         mconn <- lift $ getConnection connId
         case mconn of
           Nothing -> sendLine [ "No such connection ID." ]
           Just (sock,addr) -> do
-            sendLine ["Receiving ", show len, " bytes from ", show addr]
-            (P.unitD >-> (P.raiseK . P.tryK) (socketP len sock)) ()
+            sendLines [["Receiving ", show len, " bytes from ", show addr]
+                      ,["{--{--{--{--{"]]
+            let src = P.unitD >-> (P.raiseK . P.tryK) (socketP len sock)
+            (src >-> P.takeB 1 >-> P.mapD (<>"\r\n")) ()
+            sendLines [["}--}--}--}--}"], ["Received."]]
 
 
 --------------------------------------------------------------------------------
