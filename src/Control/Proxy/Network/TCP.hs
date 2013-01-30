@@ -5,8 +5,9 @@ module Control.Proxy.Network.TCP (
    ServerSettings(..),
    ClientSettings(..),
    -- * Socket proxies
-   socketP,
-   socketC,
+   socketProducer,
+   socketConsumer,
+   socketServer,
    -- * Safe socket usage
    withClient,
    withServer,
@@ -101,18 +102,28 @@ withServer (ServerSettings host port) =
 --------------------------------------------------------------------------------
 
 -- | Socket Producer. Stream data from the socket.
-socketP :: (P.Proxy p, MonadIO m)
-             => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
-socketP bufsize socket () = P.runIdentityP loop
-  where loop = do bs <- lift . liftIO $ recv socket bufsize
-                  unless (B.null bs) $ P.respond bs >> loop
+socketProducer :: (P.Proxy p, MonadIO m)
+               => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
+socketProducer bufsize socket () = P.runIdentityP loop where
+    loop = do bs <- lift . liftIO $ recv socket bufsize
+              unless (B.null bs) $ P.respond bs >> loop
 
 
 -- | Socket Consumer. Stream data to the socket.
-socketC :: (P.Proxy p, MonadIO m)
-             => NS.Socket -> () -> P.Consumer p B.ByteString m ()
-socketC socket = P.runIdentityK . P.foreverK $ loop
-  where loop = P.request >=> lift . liftIO . sendAll socket
+socketConsumer :: (P.Proxy p, MonadIO m)
+               => NS.Socket -> () -> P.Consumer p B.ByteString m ()
+socketConsumer socket = P.runIdentityK . P.foreverK $ loop where
+    loop = P.request >=> lift . liftIO . sendAll socket
+
+
+-- | Socket Server. Stream data to and from the socket.
+socketServer :: (P.Proxy p, MonadIO m)
+             => Int -> NS.Socket
+             -> B.ByteString -> P.Server p B.ByteString B.ByteString m ()
+socketServer bufsize socket = P.runIdentityK loop where
+    loop b' = do
+      bs <- lift . liftIO $ sendAll socket b' >> recv socket bufsize
+      unless (B.null bs) $ P.respond bs >>= loop
 
 
 --------------------------------------------------------------------------------
