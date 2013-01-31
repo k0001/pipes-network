@@ -13,15 +13,16 @@ import           Data.Monoid                      (mconcat)
 
 main :: IO ()
 main = do
-  let nonSafeSettings = ServerSettings (Just "127.0.0.1") 9998
-      safeSettings    = ServerSettings (Just "127.0.0.1") 9999
+  let host = "127.0.0.1"
 
   forkIO $ do
-    putStrLn $ "Starting non-safe echo server on: " ++ show nonSafeSettings
-    runServer nonSafeSettings nonsafeEchoApp
+     let port = 9999
+     putStrLn $ "Starting non-safe echo server on " ++ host ++ ":" ++ show port
+     runServer (Just host) port nonsafeEchoApp
 
-  putStrLn $ "Starting safe echo server: " ++ show safeSettings
-  runServer safeSettings safeEchoApp
+  do let port = 9998
+     putStrLn $ "Starting safe echo server on " ++ host ++ ":" ++ show port
+     runServer (Just host) port safeEchoApp
 
   return ()
 

@@ -13,9 +13,8 @@ import qualified Control.Monad.State              as S
 import           Control.Monad.Trans.Class
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
-import           Control.Proxy.Network.TCP        (ServerSettings (..), connect
-                                                  ,socketP, socketC)
-import           Control.Proxy.Network.TCP.Simple (Application, runServer)
+import qualified Control.Proxy.Network.TCP        as PN
+import qualified Control.Proxy.Network.TCP.Simple as PN
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>), mconcat)
@@ -26,7 +25,7 @@ import qualified Network.Socket                   as NS (sClose, SockAddr, Socke
 main :: IO ()
 main = do
   logMsg "INFO" "Starting TCP server listening on 127.0.0.1:9999"
-  runServer (ServerSettings (Just "127.0.0.1") 9999) interactive
+  PN.runServer (Just "127.0.0.1") 9999 interactive
 
 type Connection = (NS.Socket, NS.SockAddr)
 type Connections = [(Int, Connection)]
@@ -36,7 +35,7 @@ newtype InteractionT m a = InteractionT
         deriving (Functor, Applicative, Monad)
 
 
-interactive :: Application P.ProxyFast ()
+interactive :: PN.Application P.ProxyFast ()
 interactive addr (src, dst) = do
   logClient' addr "INFO" "Starting interactive session"
 
@@ -115,7 +114,7 @@ runRequestD () = do
         sendLine [ "Crashing. Connection will drop. Try connecting again." ]
         io . E.throwIO $ userError "Crash request"
       Connect host port -> do
-        econn <- io . E.try $ connect host port
+        econn <- io . E.try $ PN.connect host port
         case econn of
           Left (ex :: E.SomeException) -> do
              let msg = "Can't connect " <> show (host,port) <> ": " <> show ex
@@ -147,7 +146,7 @@ runRequestD () = do
             let bytes = B8.pack msg
             sendLine ["Sending ", show (B8.length bytes)," bytes to ",show addr]
             (const (P.respond bytes)
-               >-> (P.raiseK . P.tryK) (socketC sock)
+               >-> (P.raiseK . P.tryK) (PN.socketC sock)
                >-> P.unitU) ()
             sendLine ["Sent."]
       Receive connId len -> do
@@ -157,7 +156,7 @@ runRequestD () = do
           Just (sock,addr) -> do
             sendLines [["Receiving ", show len, " bytes from ", show addr]
                       ,["{--{--{--{--{"]]
-            let src = P.unitD >-> (P.raiseK . P.tryK) (socketP len sock)
+            let src = P.unitD >-> (P.raiseK . P.tryK) (PN.socketP len sock)
             (src >-> P.takeB 1 >-> P.mapD (<>"\r\n")) ()
             sendLines [["}--}--}--}--}"], ["Received."]]
 

@@ -2,9 +2,6 @@
 {-# LANGUAGE Rank2Types #-}
 
 module Control.Proxy.Network.TCP (
-   -- * Settings
-   ServerSettings(..),
-   ClientSettings(..),
    -- * Socket proxies
    socketP,
    socketC,
@@ -30,30 +27,6 @@ import qualified Network.Socket                            as NS
 import           Network.Socket.ByteString                 (sendAll, recv)
 
 
-
--- | Settings for a TCP server.
---
--- TODO IPv6 stuff.
--- TODO Named ports.
-data ServerSettings = ServerSettings
-    { serverHost :: Maybe NS.HostName
-                    -- ^ Host to bind to. 'Nothing' indicates no preference
-    , serverPort :: Int
-                    -- ^ Port to bind to.
-    } deriving (Eq, Show)
-
-
--- | Settings for a TCP client.
---
--- TODO IPv6 stuff.
--- TODO Named ports.
-data ClientSettings = ClientSettings
-    { clientHost :: NS.HostName -- ^ Remote server host.
-    , clientPort :: Int         -- ^ Remote server port.
-    } deriving (Eq, Show)
-
-
---------------------------------------------------------------------------------
 
 -- | Safely run a TCP client.
 --

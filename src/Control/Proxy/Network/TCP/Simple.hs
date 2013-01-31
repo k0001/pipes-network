@@ -7,10 +7,8 @@ module Control.Proxy.Network.TCP.Simple (
    -- * Simple TCP Application API
    Application,
    -- ** Client side
-   PNT.ClientSettings(..),
    runClient,
    -- ** Server side
-   PNT.ServerSettings(..),
    runServer,
    ) where
 
@@ -38,8 +36,8 @@ type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) r
 --
 -- This function will connect to a TCP server specified in the given settings
 -- and run the given 'Application'.
-runClient :: P.Proxy p => PNT.ClientSettings -> Application p r -> IO r
-runClient (PNT.ClientSettings host port) app = E.bracket
+runClient :: P.Proxy p => NS.HostName -> Int -> Application p r -> IO r
+runClient host port app = E.bracket
     (PNT.connect host port)
     (NS.sClose . fst)
     (\(sock,addr) -> app addr (PNT.socketP 4096 sock, PNT.socketC sock))
@@ -50,8 +48,8 @@ runClient (PNT.ClientSettings host port) app = E.bracket
 -- This function will create a new listening socket using the given settings,
 -- accept connections on it, and handle each incomming connection running the
 -- given 'Application' on a new thread.
-runServer :: P.Proxy p => PNT.ServerSettings -> Application p r -> IO r
-runServer (PNT.ServerSettings host port) app = E.bracket
+runServer :: P.Proxy p => Maybe NS.HostName -> Int -> Application p r -> IO r
+runServer host port app = E.bracket
     (PNT.listen host port)
     (NS.sClose . fst)
     (forever . serve)
