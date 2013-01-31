@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Control.Proxy.Network.TCP (
    -- * Settings
@@ -54,45 +55,40 @@ data ClientSettings = ClientSettings
 
 --------------------------------------------------------------------------------
 
--- | Start a TCP client and run the given continuation, which takes the
--- connection socket and the other endpoint's address.
+-- | Safely run a TCP client.
 --
 -- The connection socket is safely closed when done.
 withClient
-  :: P.Proxy p
-  => ClientSettings
-  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b P.SafeIO r)
-  -> P.ExceptionP p a' a b' b P.SafeIO r
--- TODO: check wether this type makes more sense:
--- withClient
---   :: P.Proxy p
---   => ClientSettings
---   -> ((NS.Socket, NS.SockAddr) -> b' -> P.ExceptionP p a' a b' b P.SafeIO r)
---   -> b' -> P.ExceptionP p a' a b' b P.SafeIO r
-withClient (ClientSettings host port) =
-    P.bracket id connect' close
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> NS.HostName                   -- ^Preferred hostname.
+  -> Int                           -- ^Port number.
+  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+                                   -- ^Guarded computation taking the
+                                   -- communication socket and the server
+                                   -- address.
+  -> P.ExceptionP p a' a b' b m r
+withClient morph host port =
+    P.bracket morph connect' close
   where
     connect' = connect host port
     close (s,_) = NS.sClose s
 
 
--- | Start a TCP server and run the given continuation, which takes the
--- listening socket and the bound address.
+-- | Safely run a TCP server.
 --
 -- The listening socket is safely closed when done.
 withServer
-  :: P.Proxy p
-  => ServerSettings
-  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b P.SafeIO r)
-  -> P.ExceptionP p a' a b' b P.SafeIO r
--- TODO: check wether this type makes more sense:
--- withServer
---   :: P.Proxy p
---   => ServerSettings
---   -> ((NS.Socket, NS.SockAddr) -> b' -> P.ExceptionP p a' a b' b P.SafeIO r)
---   -> b' -> P.ExceptionP p a' a b' b P.SafeIO r
-withServer (ServerSettings host port) =
-    P.bracket id bind close
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> Maybe NS.HostName             -- ^Preferred hostname.
+  -> Int                           -- ^Port number.
+  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+                                   -- ^Guarded computation taking the listening
+                                   -- socket and the address it's bound to.
+  -> P.ExceptionP p a' a b' b m r
+withServer morph host port =
+    P.bracket morph bind close
   where
     bind = listen host port
     close (s,_) = NS.sClose s
@@ -107,14 +103,11 @@ socketProducer bufsize socket () = P.runIdentityP loop where
     loop = do bs <- lift . liftIO $ recv socket bufsize
               unless (B.null bs) $ P.respond bs >> loop
 
-
 -- | Socket Consumer. Stream data to the socket.
 socketConsumer :: (P.Proxy p, MonadIO m)
                => NS.Socket -> () -> P.Consumer p B.ByteString m ()
 socketConsumer socket = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . liftIO . sendAll socket
-
-
 
 
 --------------------------------------------------------------------------------
