@@ -46,8 +46,8 @@ withClient
   -> Int                           -- ^Server port number.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the
-                                   -- communication socket and the server
-                                   -- address.
+                                   --  communication socket and the server
+                                   --  address.
   -> P.ExceptionP p a' a b' b m r
 withClient morph host port =
     P.bracket morph connect' close
