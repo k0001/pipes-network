@@ -80,15 +80,15 @@ withServer morph host port =
 -- | Socket Producer. Stream data from the socket.
 socketP :: (P.Proxy p, MonadIO m)
         => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
-socketP bufsize socket () = P.runIdentityP loop where
-    loop = do bs <- lift . liftIO $ recv socket bufsize
+socketP bufsize sock () = P.runIdentityP loop where
+    loop = do bs <- lift . liftIO $ recv sock bufsize
               unless (B.null bs) $ P.respond bs >> loop
 
 -- | Socket Consumer. Stream data to the socket.
 socketC :: (P.Proxy p, MonadIO m)
         => NS.Socket -> () -> P.Consumer p B.ByteString m ()
-socketC socket = P.runIdentityK . P.foreverK $ loop where
-    loop = P.request >=> lift . liftIO . sendAll socket
+socketC sock = P.runIdentityK . P.foreverK $ loop where
+    loop = P.request >=> lift . liftIO . sendAll sock
 
 
 --------------------------------------------------------------------------------
@@ -97,9 +97,9 @@ socketC socket = P.runIdentityK . P.foreverK $ loop where
 -- and remote address pair, safely closing the connection socket when done. The
 -- given socket must be bound to an address and listening for connections.
 accept :: NS.Socket -> ((NS.Socket, NS.SockAddr) -> IO b) -> IO b
-accept listeningSock f = do
-    client@(cSock,_) <- NS.accept listeningSock
-    E.finally (f client) (NS.sClose cSock)
+accept lsock f = do
+    client@(csock,_) <- NS.accept lsock
+    E.finally (f client) (NS.sClose csock)
 
 
 -- | Accept a connection and, on a different thread, run an action on the
@@ -107,9 +107,9 @@ accept listeningSock f = do
 -- connection socket when done. The given socket must be bound to an address and
 -- listening for connections.
 acceptFork :: NS.Socket -> ((NS.Socket, NS.SockAddr) -> IO ()) -> IO ThreadId
-acceptFork listeningSock f = do
-    client@(cSock,_) <- NS.accept listeningSock
-    forkIO $ E.finally (f client) (NS.sClose cSock)
+acceptFork lsock f = do
+    client@(csock,_) <- NS.accept lsock
+    forkIO $ E.finally (f client) (NS.sClose csock)
 
 
 --------------------------------------------------------------------------------
