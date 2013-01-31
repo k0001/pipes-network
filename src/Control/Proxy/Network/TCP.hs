@@ -118,19 +118,14 @@ acceptFork listeningSock f = do
 connect :: NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 connect host port = do
-    let hints = NS.defaultHints {
-                          NS.addrFlags = [NS.AI_ADDRCONFIG]
-                        , NS.addrSocketType = NS.Stream
-                        }
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just $ show port)
-    E.bracketOnError
-      (NS.socket (NS.addrFamily addr)
-                 (NS.addrSocketType addr)
-                 (NS.addrProtocol addr))
-      NS.sClose
-      (\sock -> do let sockAddr = NS.addrAddress addr
-                   NS.connect sock sockAddr
-                   return (sock, sockAddr))
+    E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
+       let sockAddr = NS.addrAddress addr
+       NS.connect sock sockAddr
+       return (sock, sockAddr)
+  where
+    hints = NS.defaultHints { NS.addrFlags = [NS.AI_ADDRCONFIG]
+                            , NS.addrSocketType = NS.Stream }
 
 
 -- | Attempt to bind a listening 'NS.Socket' on the given host name and port
@@ -162,6 +157,8 @@ listen host port = do
       NS.listen sock (max 2048 NS.maxListenQueue)
       return (sock, sockAddr)
 
-    newSocket addr = NS.socket (NS.addrFamily addr)
-                               (NS.addrSocketType addr)
-                               (NS.addrProtocol addr)
+
+newSocket :: NS.AddrInfo -> IO NS.Socket
+newSocket addr = NS.socket (NS.addrFamily addr)
+                           (NS.addrSocketType addr)
+                           (NS.addrProtocol addr)
