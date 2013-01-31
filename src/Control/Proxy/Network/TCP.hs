@@ -152,6 +152,7 @@ listen host port = do
 
     useAddr addr = E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
       let sockAddr = NS.addrAddress addr
+      NS.setSocketOption sock NS.NoDelay 1
       NS.setSocketOption sock NS.ReuseAddr 1
       NS.bindSocket sock sockAddr
       NS.listen sock (max 2048 NS.maxListenQueue)
