@@ -36,7 +36,7 @@ type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) r
 runClient
   :: P.Proxy p
   => NS.HostName       -- ^Server hostname.
-  -> Int               -- ^Server port numbr.
+  -> Int               -- ^Server port number.
   -> Application p r   -- ^Applicatoin
   -> IO r
 runClient host port app = E.bracket connect close use

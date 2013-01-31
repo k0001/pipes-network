@@ -1,6 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
 
+-- | Utilities to use TCP connections together with the @pipes@ and @pipes-safe@
+-- libraries.
+
+-- Some code in this file was adapted from the @network-conduit@ library by
+-- Michael Snoyman. Copyright (c) 2011. See its licensing terms (BSD3) at:
+--   https://github.com/snoyberg/conduit/blob/master/network-conduit/LICENSE
+
+
 module Control.Proxy.Network.TCP (
    -- * Socket proxies
    socketP,
@@ -34,8 +42,8 @@ import           Network.Socket.ByteString                 (sendAll, recv)
 withClient
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> NS.HostName                   -- ^Preferred hostname.
-  -> Int                           -- ^Port number.
+  -> NS.HostName                   -- ^Server hostname.
+  -> Int                           -- ^Server port number.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the
                                    -- communication socket and the server
@@ -54,11 +62,11 @@ withClient morph host port =
 withServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> Maybe NS.HostName             -- ^Preferred hostname.
-  -> Int                           -- ^Port number.
+  -> Maybe NS.HostName             -- ^Preferred hostname to bind to.
+  -> Int                           -- ^Port number to bind to.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the listening
-                                   -- socket and the address it's bound to.
+                                   --  socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
 withServer morph host port =
     P.bracket morph bind close
@@ -125,7 +133,6 @@ connect host port = do
                    return (sock, sockAddr))
 
 
-
 -- | Attempt to bind a listening @Socket@ on the given host and port.
 -- If no explicit host is given, will use the first address available.
 listen :: Maybe NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
@@ -139,8 +146,7 @@ listen host port = do
                 ]
             , NS.addrSocketType = NS.Stream
             }
-        port' = Just . show $ port
-    addrs <- NS.getAddrInfo (Just hints) host port'
+    addrs <- NS.getAddrInfo (Just hints) host (Just $ show port)
     let
         tryAddrs (addr1:rest@(_:_)) = E.catch
                                       (theBody addr1)
