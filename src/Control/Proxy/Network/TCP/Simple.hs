@@ -32,29 +32,36 @@ type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) r
   -> IO r
 
 
--- | Run a TCP 'Application' by connecting to the specified server.
---
--- This function will connect to a TCP server specified in the given settings
--- and run the given 'Application'.
-runClient :: P.Proxy p => NS.HostName -> Int -> Application p r -> IO r
-runClient host port app = E.bracket
-    (PNT.connect host port)
-    (NS.sClose . fst)
-    (\(sock,addr) -> app addr (PNT.socketP 4096 sock, PNT.socketC sock))
-
-
--- | Run a TCP 'Application' with the given settings.
---
--- This function will create a new listening socket using the given settings,
--- accept connections on it, and handle each incomming connection running the
--- given 'Application' on a new thread.
-runServer :: P.Proxy p => Maybe NS.HostName -> Int -> Application p r -> IO r
-runServer host port app = E.bracket
-    (PNT.listen host port)
-    (NS.sClose . fst)
-    (forever . serve)
+-- | Run a simple TCP 'Application' client connecting to the specified server.
+runClient
+  :: P.Proxy p
+  => NS.HostName       -- ^Server hostname.
+  -> Int               -- ^Server port numbr.
+  -> Application p r   -- ^Applicatoin
+  -> IO r
+runClient host port app = E.bracket connect close use
   where
-    serve (listeningSock,_) = do
-      PNT.acceptFork listeningSock $ \(sock,addr) -> do
-        void $ app addr (PNT.socketP 4096 sock, PNT.socketC sock)
+    connect = PNT.connect host port
+    close (sock,_) = NS.sClose sock
+    use (sock,addr) = app addr (PNT.socketP 4096 sock, PNT.socketC sock)
+
+
+-- | Run a simple 'Application' TCP server handling each incomming connection
+-- in a different thread.
+runServer
+  :: P.Proxy p
+  => Maybe NS.HostName       -- ^Preferred hostname to bind to.
+  -> Int                     -- ^Port number to bind to.
+  -> (NS.SockAddr -> IO ())  -- ^Computation to run once after the listening
+                             --  socket has been bound.
+  -> Application p r         -- ^Application handling an incomming connection.
+  -> IO r
+runServer host port afterBind app = E.bracket bind close use
+  where
+    bind = PNT.listen host port
+    close (lsock,_) = NS.sClose lsock
+    use (lsock,laddr) = do
+      afterBind laddr
+      forever . PNT.acceptFork lsock $ \(csock,caddr) -> do
+        void $ app caddr (PNT.socketP 4096 csock, PNT.socketC csock)
 

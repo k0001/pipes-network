@@ -24,8 +24,9 @@ import qualified Network.Socket                   as NS (sClose, SockAddr, Socke
 
 main :: IO ()
 main = do
-  logMsg "INFO" "Starting TCP server listening on 127.0.0.1:9999"
-  PN.runServer (Just "127.0.0.1") 9999 interactive
+  PN.runServer (Just "127.0.0.1") 9999
+    (\addr -> logMsg "INFO" $ "Started TCP server listening on " <> show addr)
+    interactive
 
 type Connection = (NS.Socket, NS.SockAddr)
 type Connections = [(Int, Connection)]
