@@ -114,7 +114,7 @@ acceptFork listeningSock f = do
 
 --------------------------------------------------------------------------------
 
--- | Attempt to connect to the given host/port.
+-- | Attempt to connect to the given host name and port number.
 connect :: NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 connect host port = do
@@ -133,8 +133,14 @@ connect host port = do
                    return (sock, sockAddr))
 
 
--- | Attempt to bind a listening @Socket@ on the given host and port.
+-- | Attempt to bind a listening 'NS.Socket' on the given host name and port
+-- number.
+--
 -- If no explicit host is given, will use the first address available.
+--
+-- 'N.maxListenQueue' is tipically 128, which is too small for high performance
+-- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
+-- default size of the listening queue.
 listen :: Maybe NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 listen host port = do
@@ -164,7 +170,7 @@ listen host port = do
               let sockAddr = NS.addrAddress addr
               NS.setSocketOption sock NS.ReuseAddr 1
               NS.bindSocket sock sockAddr
-              NS.listen sock NS.maxListenQueue
+              NS.listen sock (max 2048 NS.maxListenQueue)
               return (sock, sockAddr)
           )
     tryAddrs addrs
