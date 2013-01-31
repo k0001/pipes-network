@@ -42,7 +42,7 @@ runClient :: P.Proxy p => PNT.ClientSettings -> Application p r -> IO r
 runClient (PNT.ClientSettings host port) app = E.bracket
     (PNT.connect host port)
     (NS.sClose . fst)
-    (\(s,a) -> app (a, PNT.socketProducer 4096 s, PNT.socketConsumer s))
+    (\(s,a) -> app (a, PNT.socketP 4096 s, PNT.socketC s))
 
 
 -- | Run a TCP 'Application' with the given settings.
@@ -58,6 +58,6 @@ runServer (PNT.ServerSettings host port) app = E.bracket
   where
     serve (listeningSock,_) = do
       PNT.acceptFork listeningSock $ \(s,a) -> do
-        app (a, PNT.socketProducer 4096 s, PNT.socketConsumer s)
+        app (a, PNT.socketP 4096 s, PNT.socketC s)
         return ()
 

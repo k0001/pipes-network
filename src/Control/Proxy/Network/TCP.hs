@@ -6,8 +6,8 @@ module Control.Proxy.Network.TCP (
    ServerSettings(..),
    ClientSettings(..),
    -- * Socket proxies
-   socketProducer,
-   socketConsumer,
+   socketP,
+   socketC,
    -- * Safe socket usage
    withClient,
    withServer,
@@ -97,16 +97,16 @@ withServer morph host port =
 --------------------------------------------------------------------------------
 
 -- | Socket Producer. Stream data from the socket.
-socketProducer :: (P.Proxy p, MonadIO m)
-               => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
-socketProducer bufsize socket () = P.runIdentityP loop where
+socketP :: (P.Proxy p, MonadIO m)
+        => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
+socketP bufsize socket () = P.runIdentityP loop where
     loop = do bs <- lift . liftIO $ recv socket bufsize
               unless (B.null bs) $ P.respond bs >> loop
 
 -- | Socket Consumer. Stream data to the socket.
-socketConsumer :: (P.Proxy p, MonadIO m)
-               => NS.Socket -> () -> P.Consumer p B.ByteString m ()
-socketConsumer socket = P.runIdentityK . P.foreverK $ loop where
+socketC :: (P.Proxy p, MonadIO m)
+        => NS.Socket -> () -> P.Consumer p B.ByteString m ()
+socketC socket = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . liftIO . sendAll socket
 
 

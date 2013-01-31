@@ -14,7 +14,7 @@ import           Control.Monad.Trans.Class
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
 import           Control.Proxy.Network.TCP        (ServerSettings (..), connect
-                                                  ,socketProducer, socketConsumer)
+                                                  ,socketP, socketC)
 import           Control.Proxy.Network.TCP.Simple (Application, runServer)
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
@@ -147,7 +147,7 @@ runRequestD () = do
             let bytes = B8.pack msg
             sendLine ["Sending ", show (B8.length bytes)," bytes to ",show addr]
             (const (P.respond bytes)
-               >-> (P.raiseK . P.tryK) (socketConsumer sock)
+               >-> (P.raiseK . P.tryK) (socketC sock)
                >-> P.unitU) ()
             sendLine ["Sent."]
       Receive connId len -> do
@@ -157,7 +157,7 @@ runRequestD () = do
           Just (sock,addr) -> do
             sendLines [["Receiving ", show len, " bytes from ", show addr]
                       ,["{--{--{--{--{"]]
-            let src = P.unitD >-> (P.raiseK . P.tryK) (socketProducer len sock)
+            let src = P.unitD >-> (P.raiseK . P.tryK) (socketP len sock)
             (src >-> P.takeB 1 >-> P.mapD (<>"\r\n")) ()
             sendLines [["}--}--}--}--}"], ["Received."]]
 
