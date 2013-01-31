@@ -143,35 +143,25 @@ connect host port = do
 -- default size of the listening queue.
 listen :: Maybe NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
+-- TODO Handle IPv6
 listen host port = do
-    let hints = NS.defaultHints
-            { NS.addrFlags =
-                [ NS.AI_PASSIVE
-                , NS.AI_NUMERICSERV
-                , NS.AI_NUMERICHOST
-                ]
-            , NS.addrSocketType = NS.Stream
-            }
-    addrs <- NS.getAddrInfo (Just hints) host (Just $ show port)
-    let
-        tryAddrs (addr1:rest@(_:_)) = E.catch
-                                      (theBody addr1)
-                                      (\(_ :: E.IOException) -> tryAddrs rest)
-        tryAddrs (addr1:[])         = theBody addr1
-        tryAddrs _                  = error "listen: addrs is empty"
-        theBody addr =
-          E.bracketOnError
-          (NS.socket
-            (NS.addrFamily addr)
-            (NS.addrSocketType addr)
-            (NS.addrProtocol addr))
-          NS.sClose
-          (\sock -> do
-              let sockAddr = NS.addrAddress addr
-              NS.setSocketOption sock NS.ReuseAddr 1
-              NS.bindSocket sock sockAddr
-              NS.listen sock (max 2048 NS.maxListenQueue)
-              return (sock, sockAddr)
-          )
-    tryAddrs addrs
+    tryAddrs =<< NS.getAddrInfo (Just hints) host (Just $ show port)
+  where
+    hints = NS.defaultHints
+      { NS.addrFlags = [NS.AI_PASSIVE, NS.AI_NUMERICSERV, NS.AI_NUMERICHOST]
+      , NS.addrSocketType = NS.Stream }
 
+    tryAddrs [x]    = useAddr x
+    tryAddrs (x:xs) = E.catch (useAddr x) $ \(_ :: E.IOException) -> tryAddrs xs
+    tryAddrs _      = error "listen: addrs is empty"
+
+    useAddr addr = E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
+      let sockAddr = NS.addrAddress addr
+      NS.setSocketOption sock NS.ReuseAddr 1
+      NS.bindSocket sock sockAddr
+      NS.listen sock (max 2048 NS.maxListenQueue)
+      return (sock, sockAddr)
+
+    newSocket addr = NS.socket (NS.addrFamily addr)
+                               (NS.addrSocketType addr)
+                               (NS.addrProtocol addr)
