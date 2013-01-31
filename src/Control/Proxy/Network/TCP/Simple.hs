@@ -15,7 +15,7 @@ module Control.Proxy.Network.TCP.Simple (
    ) where
 
 import qualified Control.Exception         as E
-import           Control.Monad             (forever)
+import           Control.Monad             (forever, void)
 import qualified Control.Proxy             as P
 import qualified Control.Proxy.Network.TCP as PNT
 import qualified Data.ByteString           as B
@@ -28,9 +28,9 @@ import qualified Network.Socket            as NS
 -- It takes a continuation that recieves the other connection endpoint address,
 -- a 'Producer' to read input data from and a 'Consumer' to send output data to.
 type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) r
-  = (NS.SockAddr,
-     () -> P.Producer p B.ByteString IO (),
-     () -> P.Consumer p B.ByteString IO ())
+  = NS.SockAddr
+  -> (() -> P.Producer p B.ByteString IO (),
+      () -> P.Consumer p B.ByteString IO ())
   -> IO r
 
 
@@ -42,7 +42,7 @@ runClient :: P.Proxy p => PNT.ClientSettings -> Application p r -> IO r
 runClient (PNT.ClientSettings host port) app = E.bracket
     (PNT.connect host port)
     (NS.sClose . fst)
-    (\(s,a) -> app (a, PNT.socketP 4096 s, PNT.socketC s))
+    (\(sock,addr) -> app addr (PNT.socketP 4096 sock, PNT.socketC sock))
 
 
 -- | Run a TCP 'Application' with the given settings.
@@ -57,7 +57,6 @@ runServer (PNT.ServerSettings host port) app = E.bracket
     (forever . serve)
   where
     serve (listeningSock,_) = do
-      PNT.acceptFork listeningSock $ \(s,a) -> do
-        app (a, PNT.socketP 4096 s, PNT.socketC s)
-        return ()
+      PNT.acceptFork listeningSock $ \(sock,addr) -> do
+        void $ app addr (PNT.socketP 4096 sock, PNT.socketC sock)
 

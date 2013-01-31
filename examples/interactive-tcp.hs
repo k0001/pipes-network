@@ -37,7 +37,7 @@ newtype InteractionT m a = InteractionT
 
 
 interactive :: Application P.ProxyFast ()
-interactive (addr, src, dst) = do
+interactive addr (src, dst) = do
   logClient' addr "INFO" "Starting interactive session"
 
   let firstTimeS = welcomeP (show addr) >=> usageP

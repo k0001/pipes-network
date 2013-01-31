@@ -44,7 +44,7 @@ main :: IO ()
 main = do
   host <- maybe "127.0.0.1" id . parseArgs <$> getArgs
 
-  ports <- tcpPortsScan host [1..65535] $ \port (_addr, src, _dst) -> do
+  ports <- tcpPortsScan host [1..65535] $ \port _addr (src, _dst) -> do
      putStrLn $ "Open port: " ++ show port
      -- | no-op, just to keep the compiler happy.
      runProxy $ src >-> return

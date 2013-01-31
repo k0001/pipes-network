@@ -28,7 +28,7 @@ main = do
 
 -- | This 'Application' safely handles resource (socket) finalization.
 safeEchoApp :: Application ProxyFast ()
-safeEchoApp (addr, src, dst) = do
+safeEchoApp addr (src, dst) = do
     putStrLn $ "Incomming connection from " ++ show addr
     let upped = src >-> mapD (B8.map toUpper)
         proxy = (welcomeP (show addr) >=> upped) >-> dst
@@ -38,7 +38,7 @@ safeEchoApp (addr, src, dst) = do
 
 -- | This 'Application' doesn't safely handle resource (socket) finalization.
 nonsafeEchoApp :: Application ProxyFast ()
-nonsafeEchoApp (addr, src, dst) = do
+nonsafeEchoApp addr (src, dst) = do
     putStrLn $ "Incomming connection from " ++ show addr
     let upped = src >-> mapD (B8.map toUpper)
         proxy = (welcomeP (show addr) >=> upped) >-> dst
