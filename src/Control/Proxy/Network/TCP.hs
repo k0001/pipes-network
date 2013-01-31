@@ -1,6 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
 
+{-# OPTIONS_HADDOCK ignore-exports #-}
+
 -- | Utilities to use TCP connections together with the @pipes@ and @pipes-safe@
 -- libraries.
 
@@ -10,6 +12,8 @@
 
 
 module Control.Proxy.Network.TCP (
+   -- * Settings
+   HostPreference(..),
    -- * Socket proxies
    socketP,
    socketC,
@@ -26,14 +30,15 @@ module Control.Proxy.Network.TCP (
 import           Control.Concurrent                        (forkIO, ThreadId)
 import qualified Control.Exception                         as E
 import           Control.Monad
-import           Control.Monad.Trans.Class
 import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class
 import qualified Control.Proxy                             as P
+import           Control.Proxy.Network
 import qualified Control.Proxy.Safe                        as P
 import qualified Data.ByteString                           as B
+import           Data.List                                 (partition)
 import qualified Network.Socket                            as NS
 import           Network.Socket.ByteString                 (sendAll, recv)
-
 
 
 -- | Safely run a TCP client.
@@ -62,16 +67,16 @@ withClient morph host port =
 withServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> Maybe NS.HostName             -- ^Preferred hostname to bind to.
+  -> HostPreference                -- ^Preferred host to bind to.
   -> Int                           -- ^Port number to bind to.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
-withServer morph host port =
+withServer morph hp port =
     P.bracket morph bind close
   where
-    bind = listen host port
+    bind = listen hp port
     close (s,_) = NS.sClose s
 
 
@@ -128,19 +133,21 @@ connect host port = do
                             , NS.addrSocketType = NS.Stream }
 
 
--- | Attempt to bind a listening 'NS.Socket' on the given host name and port
--- number.
---
--- If no explicit host is given, will use the first address available.
+-- | Attempt to bind a listening 'NS.Socket' on the given host preference and
+-- port number.
 --
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
 -- default size of the listening queue.
-listen :: Maybe NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
+listen :: HostPreference -> Int -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
--- TODO Handle IPv6
-listen host port = do
-    tryAddrs =<< NS.getAddrInfo (Just hints) host (Just $ show port)
+listen hp port = do
+    addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just $ show port)
+    let addrs' = case hp of
+          HostIPv4 -> prioritize isIPv4addr addrs
+          HostIPv6 -> prioritize isIPv6addr addrs
+          _        -> addrs
+    tryAddrs addrs'
   where
     hints = NS.defaultHints
       { NS.addrFlags = [NS.AI_PASSIVE, NS.AI_NUMERICSERV, NS.AI_NUMERICHOST]
@@ -159,7 +166,18 @@ listen host port = do
       return (sock, sockAddr)
 
 
+
 newSocket :: NS.AddrInfo -> IO NS.Socket
 newSocket addr = NS.socket (NS.addrFamily addr)
                            (NS.addrSocketType addr)
                            (NS.addrProtocol addr)
+
+isIPv4addr, isIPv6addr :: NS.AddrInfo -> Bool
+isIPv4addr x = NS.addrFamily x == NS.AF_INET
+isIPv6addr x = NS.addrFamily x == NS.AF_INET6
+
+-- | Move the elements that match the predicate closer to the head of the list.
+-- Preserve relative order.
+prioritize :: (a -> Bool) -> [a] -> [a]
+prioritize p = uncurry (++) . partition p
+

@@ -1,5 +1,7 @@
 {-# LANGUAGE KindSignatures #-}
 
+{-# OPTIONS_HADDOCK ignore-exports #-}
+
 -- | This module exports an API for simple TCP applications in which the entire
 -- life-cycle of a TCP server or client runs as a single IO action.
 
@@ -10,12 +12,14 @@ module Control.Proxy.Network.TCP.Simple (
    runClient,
    -- ** Server side
    runServer,
+   HostPreference(..)
    ) where
 
 import qualified Control.Exception         as E
 import           Control.Monad             (forever, void)
 import qualified Control.Proxy             as P
 import qualified Control.Proxy.Network.TCP as PNT
+import           Control.Proxy.Network
 import qualified Data.ByteString           as B
 import qualified Network.Socket            as NS
 
@@ -50,15 +54,15 @@ runClient host port app = E.bracket connect close use
 -- in a different thread.
 runServer
   :: P.Proxy p
-  => Maybe NS.HostName       -- ^Preferred hostname to bind to.
+  => HostPreference          -- ^Preferred host to bind to.
   -> Int                     -- ^Port number to bind to.
   -> (NS.SockAddr -> IO ())  -- ^Computation to run once after the listening
                              --  socket has been bound.
   -> Application p r         -- ^Application handling an incomming connection.
   -> IO r
-runServer host port afterBind app = E.bracket bind close use
+runServer hp port afterBind app = E.bracket bind close use
   where
-    bind = PNT.listen host port
+    bind = PNT.listen hp port
     close (lsock,_) = NS.sClose lsock
     use (lsock,laddr) = do
       afterBind laddr
