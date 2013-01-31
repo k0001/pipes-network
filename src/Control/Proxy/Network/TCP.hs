@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
 
-{-# OPTIONS_HADDOCK ignore-exports #-}
+{-# OPTIONS_HADDOCK ignore-exports, prune #-}
 
 -- | Utilities to use TCP connections together with the @pipes@ and @pipes-safe@
 -- libraries.
