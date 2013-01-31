@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
 
-{-# OPTIONS_HADDOCK ignore-exports, prune #-}
+{-# OPTIONS_HADDOCK not-home, prune #-}
 
 -- | Utilities to use TCP connections together with the @pipes@ and @pipes-safe@
 -- libraries.
@@ -12,8 +12,6 @@
 
 
 module Control.Proxy.Network.TCP (
-   -- * Settings
-   HostPreference(..),
    -- * Socket proxies
    socketP,
    socketC,
@@ -25,6 +23,8 @@ module Control.Proxy.Network.TCP (
    -- * Low level API
    listen,
    connect,
+   -- * Settings
+   HostPreference(..),
    ) where
 
 import           Control.Concurrent                        (forkIO, ThreadId)

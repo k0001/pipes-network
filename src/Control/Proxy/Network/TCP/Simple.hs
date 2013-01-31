@@ -1,6 +1,6 @@
 {-# LANGUAGE KindSignatures #-}
 
-{-# OPTIONS_HADDOCK ignore-exports #-}
+{-# OPTIONS_HADDOCK not-home #-}
 
 -- | This module exports an API for simple TCP applications in which the entire
 -- life-cycle of a TCP server or client runs as a single IO action.
