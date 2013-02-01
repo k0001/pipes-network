@@ -160,7 +160,7 @@ socketC sock = P.foreverK $ loop where
 -- $unsafe-socketing
 --
 -- The following functions are similar than the safe proxies above, but they
--- don't properly handle 'Socket's finalization within proxies using
+-- don't properly handle 'NS.Socket's finalization within proxies using
 -- 'P.ExceptionP'. They do, however, properly handle finalization within 'IO'.
 
 
