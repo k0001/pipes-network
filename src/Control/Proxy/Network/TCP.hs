@@ -22,12 +22,12 @@ module Control.Proxy.Network.TCP (
    socketC,
    -- * Unsafe sockets usage
    -- $unsafe-socketing
-   withClient',
-   withServer',
-   accept',
-   acceptFork',
-   socketP',
-   socketC',
+   withClientIO,
+   withServerIO,
+   acceptIO,
+   acceptForkIO,
+   socketPIO,
+   socketCIO,
    -- * Low-level utils
    listen,
    connect,
@@ -149,7 +149,7 @@ socketP nbytes sock () = loop where
 -- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
 socketC
   :: P.Proxy p
-  => NS.Socket
+  => NS.Socket          -- ^Connected socket.
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
 socketC sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
@@ -167,14 +167,14 @@ socketC sock = P.foreverK $ loop where
 -- | Start a TCP server and use it.
 --
 -- The listening socket is closed when done.
-withServer'
+withServerIO
   :: HostPreference                -- ^Preferred host to bind to.
   -> Int                           -- ^Port number to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> IO r
-withServer' hp port =
+withServerIO hp port =
     E.bracket bind close
   where
     bind = listen hp port
@@ -184,7 +184,7 @@ withServer' hp port =
 -- | Connect to a TCP server and use the connection.
 --
 -- The connection socket is closed when done.
-withClient'
+withClientIO
   :: NS.HostName                   -- ^Server hostname.
   -> Int                           -- ^Server port number.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
@@ -192,7 +192,7 @@ withClient'
                                    --  communication socket and the server
                                    --  address.
   -> IO r
-withClient' host port =
+withClientIO host port =
     E.bracket connect' close
   where
     connect' = connect host port
@@ -202,14 +202,14 @@ withClient' host port =
 -- | Accept an incomming connection and use it.
 --
 -- The connection socket is closed when done.
-accept'
+acceptIO
   :: NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO b)
                                    -- ^Computation to run once an incomming
                                    --  connection is accepted. Takes the
                                    --  connection socket and remote end address.
   -> IO b
-accept' lsock k = do
+acceptIO lsock k = do
     conn@(csock,_) <- NS.accept lsock
     E.finally (k conn) (NS.sClose csock)
 
@@ -217,7 +217,7 @@ accept' lsock k = do
 -- | Accept an incomming connection and use it on a different thread.
 --
 -- The connection socket is closed when done.
-acceptFork'
+acceptForkIO
   :: NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
                                    -- ^Computatation to run on a different
@@ -225,7 +225,7 @@ acceptFork'
                                    -- accepted. Takes the connection socket
                                    -- and remote end address.
   -> IO ThreadId
-acceptFork' lsock f = do
+acceptForkIO lsock f = do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
 
@@ -236,17 +236,22 @@ acceptFork' lsock f = do
 --
 -- If the remote peer closes its side of the connection, this proxy sends an
 -- empty 'B.ByteString' downstream and then stops producing more values.
-socketP' :: P.Proxy p
-         => Int -> NS.Socket -> () -> P.Producer p B.ByteString IO ()
-socketP' nbytes sock () = P.runIdentityP loop where
+socketPIO
+  :: P.Proxy p
+  => Int                -- ^Maximum number of bytes to receive.
+  -> NS.Socket          -- ^Connected socket.
+  -> () -> P.Producer p B.ByteString IO ()
+socketPIO nbytes sock () = P.runIdentityP loop where
     loop = do bs <- lift $ recv sock nbytes
               P.respond bs >> unless (B.null bs) loop
 
 
 -- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
-socketC' :: P.Proxy p
-         => NS.Socket -> () -> P.Consumer p B.ByteString IO ()
-socketC' sock = P.runIdentityK . P.foreverK $ loop where
+socketCIO
+  :: P.Proxy p
+  => NS.Socket          -- ^Connected socket.
+  -> () -> P.Consumer p B.ByteString IO ()
+socketCIO sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 
 

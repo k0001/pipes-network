@@ -46,7 +46,7 @@ runClient host port app = E.bracket conn close use
   where
     conn = connect host port
     close (sock,_) = NS.sClose sock
-    use (sock,addr) = app addr (socketP' 4096 sock, socketC' sock)
+    use (sock,addr) = app addr (socketPIO 4096 sock, socketCIO sock)
 
 
 -- | Run a simple 'Application' TCP server handling each incomming connection
@@ -65,6 +65,6 @@ runServer hp port afterBind app = E.bracket bind close use
     close (lsock,_) = NS.sClose lsock
     use (lsock,laddr) = do
       afterBind laddr
-      forever . acceptFork' lsock $ \(csock,caddr) -> do
-        void $ app caddr (socketP' 4096 csock, socketC' csock)
+      forever . acceptForkIO lsock $ \(csock,caddr) -> do
+        void $ app caddr (socketPIO 4096 csock, socketCIO csock)
 
