@@ -313,7 +313,7 @@ takeBytesD = P.runIdentityK . go where
 -- | Count bytes flowing downstream.
 countBytesD
   :: (Monad m, P.Proxy p)
-  => () -> P.Pipe p B8.ByteString B8.ByteString (S.StateT Int m) ()
+  => () -> P.Pipe p B8.ByteString B8.ByteString (S.StateT Int m) r
 countBytesD () = P.runIdentityP . forever $ do
     bs <- P.request ()
     lift . S.modify $ (+) (B8.length bs)
