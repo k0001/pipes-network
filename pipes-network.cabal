@@ -12,8 +12,8 @@ Homepage: https://github.com/k0001/pipes-network
 Bug-reports: https://github.com/k0001/pipes-network
 Category: Control, Pipes, Network
 Build-type: Simple
-Synopsis: Utilities to deal with sockets using the @pipes@ library.
-Description: Utilities to deal with sockets using the @pipes@ library.
+Synopsis: Use network sockets together with the pipes library.
+Description: Use network sockets together with the pipes library.
 Cabal-version: >=1.8
 
 Flag examples

@@ -1,4 +1,4 @@
--- | Common utilities to use networks together with the @pipes@ and
+-- | Common utilities to use networks 'NS.Socket's together with the @pipes@ and
 -- @pipes-safe@ library.
 --
 -- See "Control.Proxy.Network.TCP" for specific TCP support.
