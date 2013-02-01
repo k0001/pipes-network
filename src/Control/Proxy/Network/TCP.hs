@@ -38,7 +38,6 @@ module Control.Proxy.Network.TCP (
 import           Control.Concurrent                        (forkIO, ThreadId)
 import qualified Control.Exception                         as E
 import           Control.Monad
-import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy                             as P
 import           Control.Proxy.Network
@@ -237,18 +236,18 @@ acceptFork' lsock f = do
 --
 -- If the remote peer closes its side of the connection, this proxy sends an
 -- empty 'B.ByteString' downstream and then stops producing more values.
-socketP' :: (P.Proxy p, MonadIO m)
-         => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
+socketP' :: P.Proxy p
+         => Int -> NS.Socket -> () -> P.Producer p B.ByteString IO ()
 socketP' nbytes sock () = P.runIdentityP loop where
-    loop = do bs <- lift . liftIO $ recv sock nbytes
+    loop = do bs <- lift $ recv sock nbytes
               P.respond bs >> unless (B.null bs) loop
 
 
 -- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
-socketC' :: (P.Proxy p, MonadIO m)
-         => NS.Socket -> () -> P.Consumer p B.ByteString m ()
+socketC' :: P.Proxy p
+         => NS.Socket -> () -> P.Consumer p B.ByteString IO ()
 socketC' sock = P.runIdentityK . P.foreverK $ loop where
-    loop = P.request >=> lift . liftIO . sendAll sock
+    loop = P.request >=> lift . sendAll sock
 
 
 --------------------------------------------------------------------------------
