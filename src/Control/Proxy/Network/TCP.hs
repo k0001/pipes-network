@@ -20,7 +20,10 @@ module Control.Proxy.Network.TCP (
    acceptFork,
    socketP,
    socketC,
-   -- * Unsafe sockets usage
+   -- * Low-level utils
+   listen,
+   connect,
+   -- ** Unsafe sockets usage
    -- $unsafe-socketing
    withClientIO,
    withServerIO,
@@ -28,9 +31,6 @@ module Control.Proxy.Network.TCP (
    acceptForkIO,
    socketPIO,
    socketCIO,
-   -- * Low-level utils
-   listen,
-   connect,
    -- * Settings
    HostPreference(..),
    ) where
