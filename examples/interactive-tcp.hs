@@ -155,11 +155,13 @@ runRequestD () = do
         case mconn of
           Nothing -> sendLine [ "No such connection ID." ]
           Just (sock,addr) -> do
-            sendLines [["Receiving ", show len, " bytes from ", show addr]
-                      ,["{--{--{--{--{"]]
+            sendLine ["Receiving up to ", show len, " bytes from ", show addr]
             let src = P.unitD >-> P.raiseK (PN.socketP len sock)
-            (src >-> P.takeB 1 >-> P.mapD (<>"\r\n")) ()
-            sendLines [["}--}--}--}--}"], ["Received."]]
+            (src >-> takeBytesD len) ()
+            P.respond "\r\n"
+            -- FIXME use countBytesD to get the number of received bytes
+            sendLine ["Received <unknown> bytes. (FIXME)"]
+
 
 
 --------------------------------------------------------------------------------
@@ -293,4 +295,27 @@ closeConnection (sock,addr) = do
       logMsg "ERR" $ mconcat [ "Exception closing connection to "
                              , show addr, ": ", show ex ]
 
+
+--------------------------------------------------------------------------------
+
+-- | Pipe bytes flowing downstream up to length @n@.
+takeBytesD
+  :: (Monad m, P.Proxy p)
+  => Int -> () -> P.Pipe p B8.ByteString B8.ByteString m ()
+takeBytesD = P.runIdentityK . go where
+  go n ()
+    | n <= 0    = return ()
+    | otherwise = do
+        bs <- B8.take n <$> P.request ()
+        void $ P.respond bs
+        go (n - B8.length bs) ()
+
+-- | Count bytes flowing downstream.
+countBytesD
+  :: (Monad m, P.Proxy p)
+  => () -> P.Pipe p B8.ByteString B8.ByteString (S.StateT Int m) ()
+countBytesD () = P.runIdentityP . forever $ do
+    bs <- P.request ()
+    lift . S.modify $ (+) (B8.length bs)
+    P.respond bs
 
