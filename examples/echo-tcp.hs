@@ -17,12 +17,12 @@ main = do
 
   forkIO $ do
      let port = 9999
-     runServer (Host hostname) port
+     runServer hostname port
        (\addr -> putStrLn $ "Started non-safe echo server on " ++ show addr)
        nonsafeEchoApp
 
   do let port = 9998
-     runServer (Host hostname) port
+     runServer hostname port
        (\addr -> putStrLn $ "Started non-safe echo server on " ++ show addr)
        safeEchoApp
 
