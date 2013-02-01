@@ -18,8 +18,7 @@ module Control.Proxy.Network.TCP.Simple (
 import qualified Control.Exception         as E
 import           Control.Monad             (forever, void)
 import qualified Control.Proxy             as P
-import qualified Control.Proxy.Network.TCP as PNT
-import           Control.Proxy.Network
+import           Control.Proxy.Network.TCP
 import qualified Data.ByteString           as B
 import qualified Network.Socket            as NS
 
@@ -43,11 +42,11 @@ runClient
   -> Int               -- ^Server port number.
   -> Application p r   -- ^Applicatoin
   -> IO r
-runClient host port app = E.bracket connect close use
+runClient host port app = E.bracket conn close use
   where
-    connect = PNT.connect host port
+    conn = connect host port
     close (sock,_) = NS.sClose sock
-    use (sock,addr) = app addr (PNT.socketP 4096 sock, PNT.socketC sock)
+    use (sock,addr) = app addr (socketP' 4096 sock, socketC' sock)
 
 
 -- | Run a simple 'Application' TCP server handling each incomming connection
@@ -62,10 +61,10 @@ runServer
   -> IO r
 runServer hp port afterBind app = E.bracket bind close use
   where
-    bind = PNT.listen hp port
+    bind = listen hp port
     close (lsock,_) = NS.sClose lsock
     use (lsock,laddr) = do
       afterBind laddr
-      forever . PNT.acceptFork lsock $ \(csock,caddr) -> do
-        void $ app caddr (PNT.socketP 4096 csock, PNT.socketC csock)
+      forever . acceptFork' lsock $ \(csock,caddr) -> do
+        void $ app caddr (socketP' 4096 csock, socketC' csock)
 

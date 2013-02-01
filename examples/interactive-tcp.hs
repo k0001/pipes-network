@@ -147,7 +147,7 @@ runRequestD () = do
             let bytes = B8.pack msg
             sendLine ["Sending ", show (B8.length bytes)," bytes to ",show addr]
             (const (P.respond bytes)
-               >-> (P.raiseK . P.tryK) (PN.socketC sock)
+               >-> P.raiseK (PN.socketC sock)
                >-> P.unitU) ()
             sendLine ["Sent."]
       Receive connId len -> do
@@ -157,7 +157,7 @@ runRequestD () = do
           Just (sock,addr) -> do
             sendLines [["Receiving ", show len, " bytes from ", show addr]
                       ,["{--{--{--{--{"]]
-            let src = P.unitD >-> (P.raiseK . P.tryK) (PN.socketP len sock)
+            let src = P.unitD >-> P.raiseK (PN.socketP len sock)
             (src >-> P.takeB 1 >-> P.mapD (<>"\r\n")) ()
             sendLines [["}--}--}--}--}"], ["Received."]]
 

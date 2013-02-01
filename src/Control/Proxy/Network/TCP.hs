@@ -12,15 +12,23 @@
 
 
 module Control.Proxy.Network.TCP (
-   -- * Socket proxies
-   socketP,
-   socketC,
-   -- * Safe socket usage
+   -- * Safe sockets usage
+   -- $safe-socketing
    withClient,
    withServer,
    accept,
    acceptFork,
-   -- * Low level API
+   socketP,
+   socketC,
+   -- * Unsafe sockets usage
+   -- $unsafe-socketing
+   withClient',
+   withServer',
+   accept',
+   acceptFork',
+   socketP',
+   socketC',
+   -- * Low-level utils
    listen,
    connect,
    -- * Settings
@@ -41,9 +49,17 @@ import qualified Network.Socket                            as NS
 import           Network.Socket.ByteString                 (sendAll, recv)
 
 
--- | Safely run a TCP client.
+--------------------------------------------------------------------------------
+
+-- $safe-socketing
 --
--- The connection socket is safely closed when done.
+-- 'Proxy's that properly handle finalization of 'NS.Socket's using
+-- 'P.ExceptionP'.
+
+
+-- | Connect to a TCP server and use the connection.
+--
+-- The connection socket is closed when done.
 withClient
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -61,9 +77,9 @@ withClient morph host port =
     close (s,_) = NS.sClose s
 
 
--- | Safely run a TCP server.
+-- | Start a TCP server and use it.
 --
--- The listening socket is safely closed when done.
+-- The listening socket is closed when done.
 withServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -80,41 +96,159 @@ withServer morph hp port =
     close (s,_) = NS.sClose s
 
 
---------------------------------------------------------------------------------
-
--- | Socket Producer. Stream data from the socket.
-socketP :: (P.Proxy p, MonadIO m)
-        => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
-socketP bufsize sock () = P.runIdentityP loop where
-    loop = do bs <- lift . liftIO $ recv sock bufsize
-              unless (B.null bs) $ P.respond bs >> loop
-
--- | Socket Consumer. Stream data to the socket.
-socketC :: (P.Proxy p, MonadIO m)
-        => NS.Socket -> () -> P.Consumer p B.ByteString m ()
-socketC sock = P.runIdentityK . P.foreverK $ loop where
-    loop = P.request >=> lift . liftIO . sendAll sock
-
-
---------------------------------------------------------------------------------
-
--- | Accept a connection and run an action on the resulting connection socket
--- and remote address pair, safely closing the connection socket when done. The
--- given socket must be bound to an address and listening for connections.
-accept :: NS.Socket -> ((NS.Socket, NS.SockAddr) -> IO b) -> IO b
-accept lsock f = do
-    client@(csock,_) <- NS.accept lsock
-    E.finally (f client) (NS.sClose csock)
+-- | Accept an incomming connection and use it.
+--
+-- The connection socket is closed when done.
+accept
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> NS.Socket                     -- ^Listening and bound socket.
+  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+                                   -- ^Computation to run once an incomming
+                                   --  connection is accepted. Takes the
+                                   --  connection socket and remote end address.
+  -> P.EitherP P.SomeException p a' a b' b m r
+accept morph lsock k = do
+    conn@(csock,_) <- P.hoist morph . P.tryIO $ NS.accept lsock
+    P.finally morph (NS.sClose csock) (k conn)
 
 
--- | Accept a connection and, on a different thread, run an action on the
--- resulting connection socket and remote address pair, safely closing the
--- connection socket when done. The given socket must be bound to an address and
--- listening for connections.
-acceptFork :: NS.Socket -> ((NS.Socket, NS.SockAddr) -> IO ()) -> IO ThreadId
-acceptFork lsock f = do
+-- | Accept an incomming connection and use it on a different thread.
+--
+-- The connection socket is closed when done.
+acceptFork
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> NS.Socket                     -- ^Listening and bound socket.
+  -> ((NS.Socket, NS.SockAddr) -> IO ())
+                                   -- ^Computatation to run on a different
+                                   --  thread once an incomming connection is
+                                   --  accepted. Takes the connection socket
+                                   --  and remote end address.
+  -> P.EitherP P.SomeException p a' a b' b m ThreadId
+acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
+
+
+-- | Socket 'P.Producer'. Receives bytes from a 'NS.Socket'.
+--
+-- Less than the specified maximum number of bytes might be received.
+--
+-- If the remote peer closes its side of the connection, this proxy sends an
+-- empty 'B.ByteString' downstream and then stops producing more values.
+socketP
+  :: P.Proxy p
+  => Int                -- ^Maximum number of bytes to receive.
+  -> NS.Socket          -- ^Connected socket.
+  -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
+socketP nbytes sock () = loop where
+    loop = do bs <- P.tryIO $ recv sock nbytes
+              P.respond bs >> unless (B.null bs) loop
+
+
+-- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
+socketC
+  :: P.Proxy p
+  => NS.Socket
+  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
+socketC sock = P.foreverK $ loop where
+    loop = P.request >=> P.tryIO . sendAll sock
+
+
+--------------------------------------------------------------------------------
+
+-- $unsafe-socketing
+--
+-- The following functions are similar than the safe proxies above, but they
+-- don't properly handle 'Socket's finalization within proxies using
+-- 'P.ExceptionP'. They do, however, properly handle finalization within 'IO'.
+
+
+-- | Start a TCP server and use it.
+--
+-- The listening socket is closed when done.
+withServer'
+  :: HostPreference                -- ^Preferred host to bind to.
+  -> Int                           -- ^Port number to bind to.
+  -> ((NS.Socket, NS.SockAddr) -> IO r)
+                                   -- ^Guarded computation taking the listening
+                                   --  socket and the address it's bound to.
+  -> IO r
+withServer' hp port =
+    E.bracket bind close
+  where
+    bind = listen hp port
+    close (s,_) = NS.sClose s
+
+
+-- | Connect to a TCP server and use the connection.
+--
+-- The connection socket is closed when done.
+withClient'
+  :: NS.HostName                   -- ^Server hostname.
+  -> Int                           -- ^Server port number.
+  -> ((NS.Socket, NS.SockAddr) -> IO r)
+                                   -- ^Guarded computation taking the
+                                   --  communication socket and the server
+                                   --  address.
+  -> IO r
+withClient' host port =
+    E.bracket connect' close
+  where
+    connect' = connect host port
+    close (s,_) = NS.sClose s
+
+
+-- | Accept an incomming connection and use it.
+--
+-- The connection socket is closed when done.
+accept'
+  :: NS.Socket                     -- ^Listening and bound socket.
+  -> ((NS.Socket, NS.SockAddr) -> IO b)
+                                   -- ^Computation to run once an incomming
+                                   --  connection is accepted. Takes the
+                                   --  connection socket and remote end address.
+  -> IO b
+accept' lsock k = do
+    conn@(csock,_) <- NS.accept lsock
+    E.finally (k conn) (NS.sClose csock)
+
+
+-- | Accept an incomming connection and use it on a different thread.
+--
+-- The connection socket is closed when done.
+acceptFork'
+  :: NS.Socket                     -- ^Listening and bound socket.
+  -> ((NS.Socket, NS.SockAddr) -> IO ())
+                                   -- ^Computatation to run on a different
+                                   -- thread once an incomming connection is
+                                   -- accepted. Takes the connection socket
+                                   -- and remote end address.
+  -> IO ThreadId
+acceptFork' lsock f = do
+    client@(csock,_) <- NS.accept lsock
+    forkIO $ E.finally (f client) (NS.sClose csock)
+
+
+-- | Socket 'P.Producer'. Receives bytes from a 'NS.Socket'.
+--
+-- Less than the specified maximum number of bytes might be received.
+--
+-- If the remote peer closes its side of the connection, this proxy sends an
+-- empty 'B.ByteString' downstream and then stops producing more values.
+socketP' :: (P.Proxy p, MonadIO m)
+         => Int -> NS.Socket -> () -> P.Producer p B.ByteString m ()
+socketP' nbytes sock () = P.runIdentityP loop where
+    loop = do bs <- lift . liftIO $ recv sock nbytes
+              P.respond bs >> unless (B.null bs) loop
+
+
+-- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
+socketC' :: (P.Proxy p, MonadIO m)
+         => NS.Socket -> () -> P.Consumer p B.ByteString m ()
+socketC' sock = P.runIdentityK . P.foreverK $ loop where
+    loop = P.request >=> lift . liftIO . sendAll sock
 
 
 --------------------------------------------------------------------------------
@@ -166,6 +300,7 @@ listen hp port = do
       return (sock, sockAddr)
 
 
+-- Misc
 
 newSocket :: NS.AddrInfo -> IO NS.Socket
 newSocket addr = NS.socket (NS.addrFamily addr)
