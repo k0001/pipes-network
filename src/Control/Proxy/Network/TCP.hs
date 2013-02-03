@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
 
 {-# OPTIONS_HADDOCK not-home, prune #-}
@@ -292,7 +291,8 @@ listen hp port = do
       , NS.addrSocketType = NS.Stream }
 
     tryAddrs [x]    = useAddr x
-    tryAddrs (x:xs) = E.catch (useAddr x) $ \(_ :: E.IOException) -> tryAddrs xs
+    tryAddrs (x:xs) = E.catch (useAddr x)
+                              (\e -> let _ = e :: E.IOException in tryAddrs xs)
     tryAddrs _      = error "listen: addrs is empty"
 
     useAddr addr = E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
