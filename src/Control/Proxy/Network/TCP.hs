@@ -150,7 +150,7 @@ connect host port = do
 
 
 -- | Attempt to bind a listening 'NS.Socket' on the given host preference and
--- port number.
+-- service port.
 --
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
