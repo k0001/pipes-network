@@ -165,9 +165,8 @@ listen hp port = do
           _        -> addrs
     tryAddrs addrs'
   where
-    hints = NS.defaultHints
-      { NS.addrFlags = [NS.AI_PASSIVE, NS.AI_NUMERICSERV, NS.AI_NUMERICHOST]
-      , NS.addrSocketType = NS.Stream }
+    hints = NS.defaultHints { NS.addrFlags = [NS.AI_PASSIVE]
+                            , NS.addrSocketType = NS.Stream }
 
     tryAddrs [x]    = useAddr x
     tryAddrs (x:xs) = E.catch (useAddr x)
