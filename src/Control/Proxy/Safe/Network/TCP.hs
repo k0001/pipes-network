@@ -115,8 +115,8 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 --
 -- Less than the specified maximum number of bytes might be received.
 --
--- If the remote peer closes its side of the connection, this proxy sends an
--- empty 'B.ByteString' downstream and then stops producing more values.
+-- If the remote peer closes its side of the connection, this proxy stops
+-- producing.
 socketP
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive.
@@ -124,7 +124,7 @@ socketP
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 socketP nbytes sock () = loop where
     loop = do bs <- P.tryIO $ recv sock nbytes
-              P.respond bs >> unless (B.null bs) loop
+              unless (B.null bs) $ P.respond bs >> loop
 
 
 -- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
