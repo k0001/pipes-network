@@ -13,7 +13,8 @@ import qualified Control.Monad.State              as S
 import           Control.Monad.Trans.Class
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
-import qualified Control.Proxy.Network.TCP        as PN
+import qualified Control.Proxy.Safe.Network.TCP   as PN
+import qualified Control.Proxy.Network.TCP        as PN (connect)
 import qualified Control.Proxy.Network.TCP.Simple as PN
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
