@@ -44,7 +44,7 @@ withClient
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.HostName                   -- ^Server hostname.
-  -> Int                           -- ^Server port number.
+  -> NS.ServiceName                -- ^Server service name (port).
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the
                                    --  communication socket and the server
@@ -64,7 +64,7 @@ withServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
-  -> Int                           -- ^Port number to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.

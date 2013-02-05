@@ -1,5 +1,4 @@
 {-# LANGUAGE KindSignatures #-}
-
 {-# OPTIONS_HADDOCK not-home #-}
 
 -- | This module exports an API for simple TCP applications in which the entire
@@ -39,7 +38,7 @@ type Application (p :: * -> * -> * -> * -> (* -> *) -> * -> *) r
 runClient
   :: P.Proxy p
   => NS.HostName       -- ^Server hostname.
-  -> Int               -- ^Server port number.
+  -> NS.ServiceName    -- ^Server service name (port).
   -> Application p r   -- ^Applicatoin
   -> IO r
 runClient host port app = E.bracket conn close use
@@ -54,7 +53,7 @@ runClient host port app = E.bracket conn close use
 runServer
   :: P.Proxy p
   => HostPreference          -- ^Preferred host to bind to.
-  -> Int                     -- ^Port number to bind to.
+  -> NS.ServiceName          -- ^Service name (port) to bind to.
   -> (NS.SockAddr -> IO ())  -- ^Computation to run once after the listening
                              --  socket has been bound.
   -> Application p r         -- ^Application handling an incomming connection.

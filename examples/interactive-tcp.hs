@@ -20,12 +20,12 @@ import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
 import           Data.Monoid                      ((<>), mconcat)
 import           Data.Maybe                       (isJust)
-import qualified Network.Socket                   as NS (sClose, SockAddr, Socket)
+import qualified Network.Socket                   as NS
 
 
 main :: IO ()
 main = do
-  PN.runServer "127.0.0.1" 9999
+  PN.runServer "127.0.0.1" "9999"
     (\addr -> logMsg "INFO" $ "Started TCP server listening on " <> show addr)
     interactive
 
@@ -66,7 +66,7 @@ type ConnectionId = Int
 data Request
   = Exit
   | Help
-  | Connect String Int
+  | Connect NS.HostName NS.ServiceName
   | Disconnect ConnectionId
   | Connections
   | Send ConnectionId String

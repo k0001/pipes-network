@@ -47,7 +47,7 @@ import           Network.Socket.ByteString (recv, sendAll)
 -- The listening socket is closed when done.
 withServer
   :: HostPreference                -- ^Preferred host to bind to.
-  -> Int                           -- ^Port number to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
@@ -64,7 +64,7 @@ withServer hp port =
 -- The connection socket is closed when done.
 withClient
   :: NS.HostName                   -- ^Server hostname.
-  -> Int                           -- ^Server port number.
+  -> NS.ServiceName                -- ^Server service name (port).
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the
                                    --  communication socket and the server
@@ -135,11 +135,11 @@ socketC sock = P.runIdentityK . P.foreverK $ loop where
 
 --------------------------------------------------------------------------------
 
--- | Attempt to connect to the given host name and port number.
-connect :: NS.HostName -> Int -> IO (NS.Socket, NS.SockAddr)
+-- | Attempt to connect to the given host name and service name (port).
+connect :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 connect host port = do
-    (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just $ show port)
+    (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just port)
     E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
        let sockAddr = NS.addrAddress addr
        NS.connect sock sockAddr
@@ -155,7 +155,7 @@ connect host port = do
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
 -- default size of the listening queue.
-listen :: HostPreference -> Int -> IO (NS.Socket, NS.SockAddr)
+listen :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 listen hp port = do
     addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just $ show port)
