@@ -14,15 +14,18 @@
 
 
 module Control.Proxy.Network.TCP (
-  -- * Socket proxies
-  socketP,
-  socketC,
   -- * Server side
+  -- $server-side
   withServer,
   accept,
   acceptFork,
   -- * Client side
+  -- $client-side
   withClient,
+  -- * Socket proxies
+  -- $socket-proxies
+  socketP,
+  socketC,
   -- * Low level support
   listen,
   connect,
@@ -43,26 +46,20 @@ import qualified Network.Socket as NS
 import           Network.Socket.ByteString (recv, sendAll)
 
 
--- | Start a TCP server and use it.
+--------------------------------------------------------------------------------
+
+-- $client-side
 --
--- The listening socket is closed when done.
-withServer
-  :: HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
-  -> ((NS.Socket, NS.SockAddr) -> IO r)
-                                   -- ^Guarded computation taking the listening
-                                   --  socket and the address it's bound to.
-  -> IO r
-withServer hp port =
-    E.bracket bind close'
-  where
-    bind = listen hp port
-    close' (s,_) = NS.sClose s
+-- The following functions allow you to obtain 'NS.Socket's useful to the
+-- client side of a TCP connection.
 
 
 -- | Connect to a TCP server and use the connection.
 --
--- The connection socket is closed when done.
+-- The connection socket is closed when done or in case of exceptions.
+--
+-- If you would like to close the socket yourself, then use the 'connect' and
+-- 'close' instead.
 withClient
   :: NS.HostName                   -- ^Server hostname.
   -> NS.ServiceName                -- ^Server service name (port).
@@ -78,9 +75,37 @@ withClient host port =
     close' (s,_) = NS.sClose s
 
 
+--------------------------------------------------------------------------------
+
+-- $server-side
+--
+-- The following functions allow you to obtain 'NS.Socket's useful to the
+-- server side of a TCP connection.
+
+
+-- | Start a TCP server and use it.
+--
+-- The listening socket is closed when done or in case of exceptions.
+--
+-- If you would like to close the socket yourself, then use the 'listen' and
+-- 'close' instead.
+withServer
+  :: HostPreference                -- ^Preferred host to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> ((NS.Socket, NS.SockAddr) -> IO r)
+                                   -- ^Guarded computation taking the listening
+                                   --  socket and the address it's bound to.
+  -> IO r
+withServer hp port =
+    E.bracket bind close'
+  where
+    bind = listen hp port
+    close' (s,_) = NS.sClose s
+
+
 -- | Accept an incomming connection and use it.
 --
--- The connection socket is closed when done.
+-- The connection socket is closed when done or in case of exceptions.
 accept
   :: NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO b)
@@ -95,7 +120,7 @@ accept lsock k = do
 
 -- | Accept an incomming connection and use it on a different thread.
 --
--- The connection socket is closed when done.
+-- The connection socket is closed when done or in case of exceptions.
 acceptFork
   :: NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
@@ -108,6 +133,13 @@ acceptFork lsock f = do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
 
+
+--------------------------------------------------------------------------------
+
+-- $socket-proxies
+--
+-- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
+-- to send to and receive from the other connection end.
 
 -- | Socket 'P.Producer'. Receives bytes from a 'NS.Socket'.
 --
@@ -142,7 +174,8 @@ socketC sock = P.runIdentityK . P.foreverK $ loop where
 -- not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withClient' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage.
+-- scope and would like it to be closed immediately after its usage, or in case
+-- of exceptions.
 connect :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 connect host port = do
@@ -163,7 +196,8 @@ connect host port = do
 -- not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withServer' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage.
+-- scope and would like it to be closed immediately after its usage, or in case
+-- of exceptions.
 --
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the

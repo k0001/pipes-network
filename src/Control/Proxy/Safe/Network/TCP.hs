@@ -11,15 +11,18 @@
 
 
 module Control.Proxy.Safe.Network.TCP (
-  -- * Socket proxies
-  socketP,
-  socketC,
   -- * Server side
+  -- $server-side
   withServer,
   accept,
   acceptFork,
   -- * Client side
+  -- $client-side
   withClient,
+  -- * Socket proxies
+  -- $socket-proxies
+  socketP,
+  socketC,
   -- * Low level support
   -- $low-level
   listen,
@@ -41,10 +44,20 @@ import qualified Network.Socket                            as NS
 import           Network.Socket.ByteString                 (sendAll, recv)
 
 
+--------------------------------------------------------------------------------
+
+-- $client-side
+--
+-- The following functions allow you to obtain 'NS.Socket's useful to the
+-- client side of a TCP connection.
+
 
 -- | Connect to a TCP server and use the connection.
 --
--- The connection socket is closed when done.
+-- The connection socket is closed when done or in case of exceptions.
+--
+-- If you would like to close the socket yourself, then use the 'connect' and
+-- 'close' instead.
 withClient
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -62,9 +75,19 @@ withClient morph host port =
     close' (s,_) = NS.sClose s
 
 
+--------------------------------------------------------------------------------
+
+-- $server-side
+--
+-- The following functions allow you to obtain 'NS.Socket's useful to the
+-- server side of a TCP connection.
+
 -- | Start a TCP server and use it.
 --
--- The listening socket is closed when done.
+-- The listening socket is closed when done or in case of exceptions.
+--
+-- If you would like to close the socket yourself, then use the 'listen' and
+-- 'close' instead.
 withServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -83,7 +106,7 @@ withServer morph hp port =
 
 -- | Accept an incomming connection and use it.
 --
--- The connection socket is closed when done.
+-- The connection socket is closed when done or in case of exceptions.
 accept
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -100,7 +123,7 @@ accept morph lsock k = do
 
 -- | Accept an incomming connection and use it on a different thread.
 --
--- The connection socket is closed when done.
+-- The connection socket is closed when done or in case of exceptions.
 acceptFork
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -114,6 +137,14 @@ acceptFork
 acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
+
+
+--------------------------------------------------------------------------------
+
+-- $socket-proxies
+--
+-- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
+-- to send to and receive from the other connection end.
 
 
 -- | Socket 'P.Producer'. Receives bytes from a 'NS.Socket'.
@@ -156,7 +187,8 @@ socketC sock = P.foreverK $ loop where
 -- not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withClient' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage.
+-- scope and would like it to be closed immediately after its usage, or in case
+-- of exceptions.
 --
 -- > connect host port = tryIO $ Control.Proxy.Network.TCP.connect host port
 connect
@@ -174,7 +206,8 @@ connect host port = P.tryIO $ T.connect host port
 -- not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withServer' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage.
+-- scope and would like it to be closed immediately after its usage, or in case
+-- of exceptions.
 --
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
@@ -194,3 +227,4 @@ listen hp port = P.tryIO $ T.listen hp port
 -- > close sock = tryIO $ Control.Proxy.Network.TCP.close sock
 close :: P.Proxy p => NS.Socket -> P.ExceptionP p a' a b' b P.SafeIO ()
 close = P.tryIO . T.close
+
