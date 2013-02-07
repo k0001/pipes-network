@@ -14,7 +14,6 @@ import           Control.Monad.Trans.Class
 import           Control.Proxy                    ((>->))
 import qualified Control.Proxy                    as P
 import qualified Control.Proxy.Safe.Network.TCP   as PN
-import qualified Control.Proxy.Network.TCP        as PN (connect)
 import qualified Control.Proxy.Network.TCP.Simple as PN
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString.Char8            as B8
@@ -104,6 +103,13 @@ handleInputD () = loop where
           Exit -> return ()
           _    -> loop
 
+-- | Analogous to 'Control.Exception.try' from @Control.Exception@
+exTry :: (Monad m, E.Exception e, P.Proxy p)
+      => P.EitherP P.SomeException p a' a b' b m r
+      -> P.ExceptionP p a' a b' b m (Either e r)
+exTry m = P.catch (liftM Right m) (return . Left)
+
+
 runRequestD
   :: (P.CheckP p)
   => () -> P.Pipe (P.ExceptionP p) Request B8.ByteString (InteractionT P.SafeIO) ()
@@ -116,17 +122,17 @@ runRequestD () = do
         sendLine [ "Crashing. Connection will drop. Try connecting again." ]
         io . E.throwIO $ userError "Crash request"
       Connect host port -> do
-        econn <- io . E.try $ PN.connect host port
+        econn <- P.raise . exTry $ PN.connect host port
         case econn of
           Left (ex :: E.SomeException) -> do
-             let msg = "Can't connect " <> show (host,port) <> ": " <> show ex
-             logClient "WARN" msg
-             sendLine [msg]
+            let msg = "Can't connect " <> show (host,port) <> ": " <> show ex
+            logClient "WARN" msg
+            sendLine [msg]
           Right conn@(_,addr) -> do
-             connId <- lift $ addConnection conn
-             let msg = "Connected to " <> show addr <> ". ID " <> show connId
-             logClient "INFO" msg
-             sendLine [msg]
+            connId <- lift $ addConnection conn
+            let msg = "Connected to " <> show addr <> ". ID " <> show connId
+            logClient "INFO" msg
+            sendLine [msg]
       Disconnect connId -> do
         mconn <- lift $ popConnection connId
         case mconn of

@@ -20,6 +20,9 @@ module Control.Proxy.Safe.Network.TCP (
   acceptFork,
   -- * Client side
   withClient,
+  -- * Low level support
+  listen,
+  connect,
   -- * Exports
   HostPreference(..)
   ) where
@@ -29,7 +32,7 @@ import qualified Control.Exception                         as E
 import           Control.Monad
 import qualified Control.Proxy                             as P
 import           Control.Proxy.Network
-import           Control.Proxy.Network.TCP                 (listen, connect)
+import qualified Control.Proxy.Network.TCP                 as T
 import qualified Control.Proxy.Safe                        as P
 import qualified Data.ByteString                           as B
 import qualified Network.Socket                            as NS
@@ -53,7 +56,7 @@ withClient
 withClient morph host port =
     P.bracket morph connect' close
   where
-    connect' = connect host port
+    connect' = T.connect host port
     close (s,_) = NS.sClose s
 
 
@@ -72,7 +75,7 @@ withServer
 withServer morph hp port =
     P.bracket morph bind close
   where
-    bind = listen hp port
+    bind = T.listen hp port
     close (s,_) = NS.sClose s
 
 
@@ -135,4 +138,41 @@ socketC
 socketC sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
 
+
+--------------------------------------------------------------------------------
+
+-- | Attempt to connect to the given host name and service name (port).
+--
+-- The obtained 'NS.Socket' should be closed manually using 'close' when it's
+-- not needed anymore, otherwise it will remain open.
+--
+-- Prefer to use 'withClient' if you will be using the socket within a limited
+-- scope and would like it to be closed immediately after its usage.
+connect
+  :: P.Proxy p
+  => NS.HostName                   -- ^Server hostname.
+  -> NS.ServiceName                -- ^Server service name (port).
+  -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
+connect host port = P.tryIO $ T.connect host port
+
+
+-- | Attempt to bind a listening 'NS.Socket' on the given host preference and
+-- service port.
+--
+-- The obtained 'NS.Socket' should be closed manually using 'close' when it's
+-- not needed anymore, otherwise it will remain open.
+--
+-- Prefer to use 'withServer' if you will be using the socket within a limited
+-- scope and would like it to be closed immediately after its usage.
+--
+-- 'N.maxListenQueue' is tipically 128, which is too small for high performance
+-- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
+-- default size of the listening queue.
+-- listen :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
+listen
+  :: P.Proxy p
+  => HostPreference                -- ^Preferred host to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
+listen hp port = P.tryIO $ T.listen hp port
 
