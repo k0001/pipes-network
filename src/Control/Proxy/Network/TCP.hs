@@ -161,7 +161,7 @@ socketP nbytes sock () = P.runIdentityP loop where
 socketC
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> () -> P.Consumer p B.ByteString IO ()
+  -> () -> P.Consumer p B.ByteString IO r
 socketC sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 

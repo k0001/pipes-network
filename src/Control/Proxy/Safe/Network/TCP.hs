@@ -167,7 +167,7 @@ socketP nbytes sock () = loop where
 socketC
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
+  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO r
 socketC sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
 
