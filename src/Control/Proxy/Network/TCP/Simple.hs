@@ -50,6 +50,18 @@ runClient host port app = E.bracket conn close' use
 
 -- | Run a simple 'Application' TCP server handling each incomming connection
 -- in a different thread.
+--
+-- Here's a sample server application that echoes all incoming data back to the
+-- client.
+--
+-- > main :: IO ()
+-- > main = do
+-- >   let afterBind laddr = do
+-- >         putStrLn $ "Server listening on " ++ show laddr
+-- >       echoApp caddr (src,dst) = do
+-- >         putStrLn $ "Got a connection from client " ++ show caddr
+-- >         P.runProxy $ src P.>-> dst
+-- >   runServer (Host "127.0.0.1") "9000" afterBind echoApp
 runServer
   :: P.Proxy p
   => HostPreference          -- ^Preferred host to bind to.
