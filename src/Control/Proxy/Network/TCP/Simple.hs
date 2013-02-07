@@ -60,7 +60,7 @@ runClient host port app = E.bracket conn close' use
 -- >         putStrLn $ "Server listening on " ++ show laddr
 -- >       echoApp caddr (src,dst) = do
 -- >         putStrLn $ "Got a connection from client " ++ show caddr
--- >         P.runProxy $ src P.>-> dst
+-- >         runProxy $ src >-> dst
 -- >   runServer (Host "127.0.0.1") "9000" afterBind echoApp
 runServer
   :: P.Proxy p
