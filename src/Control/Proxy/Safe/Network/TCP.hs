@@ -21,8 +21,10 @@ module Control.Proxy.Safe.Network.TCP (
   -- * Client side
   withClient,
   -- * Low level support
+  -- $low-level
   listen,
   connect,
+  close,
   -- * Exports
   HostPreference(..)
   ) where
@@ -54,10 +56,10 @@ withClient
                                    --  address.
   -> P.ExceptionP p a' a b' b m r
 withClient morph host port =
-    P.bracket morph connect' close
+    P.bracket morph connect' close'
   where
     connect' = T.connect host port
-    close (s,_) = NS.sClose s
+    close' (s,_) = NS.sClose s
 
 
 -- | Start a TCP server and use it.
@@ -73,10 +75,10 @@ withServer
                                    --  socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
 withServer morph hp port =
-    P.bracket morph bind close
+    P.bracket morph bind close'
   where
     bind = T.listen hp port
-    close (s,_) = NS.sClose s
+    close' (s,_) = NS.sClose s
 
 
 -- | Accept an incomming connection and use it.
@@ -90,7 +92,7 @@ accept
                                    -- ^Computation to run once an incomming
                                    --  connection is accepted. Takes the
                                    --  connection socket and remote end address.
-  -> P.EitherP P.SomeException p a' a b' b m r
+  -> P.ExceptionP p a' a b' b m r
 accept morph lsock k = do
     conn@(csock,_) <- P.hoist morph . P.tryIO $ NS.accept lsock
     P.finally morph (NS.sClose csock) (k conn)
@@ -108,7 +110,7 @@ acceptFork
                                    --  thread once an incomming connection is
                                    --  accepted. Takes the connection socket
                                    --  and remote end address.
-  -> P.EitherP P.SomeException p a' a b' b m ThreadId
+  -> P.ExceptionP p a' a b' b m ThreadId
 acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
@@ -141,6 +143,13 @@ socketC sock = P.foreverK $ loop where
 
 --------------------------------------------------------------------------------
 
+-- $low-level
+--
+-- The following functions are provided for your convenience. They simply
+-- compose 'P.tryIO' with their "Control.Proxy.Network.TCP" counterparts, so
+-- that you don't need to do it.
+
+
 -- | Attempt to connect to the given host name and service name (port).
 --
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
@@ -148,6 +157,8 @@ socketC sock = P.foreverK $ loop where
 --
 -- Prefer to use 'withClient' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage.
+--
+-- > connect host port = tryIO $ Control.Proxy.Network.TCP.connect host port
 connect
   :: P.Proxy p
   => NS.HostName                   -- ^Server hostname.
@@ -168,7 +179,8 @@ connect host port = P.tryIO $ T.connect host port
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
 -- default size of the listening queue.
--- listen :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
+--
+-- > listen hp port = tryIO $ Control.Proxy.Network.TCP.listen hp port
 listen
   :: P.Proxy p
   => HostPreference                -- ^Preferred host to bind to.
@@ -176,3 +188,9 @@ listen
   -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
 listen hp port = P.tryIO $ T.listen hp port
 
+-- | Close the socket. All future operations on the socket object will fail. The
+-- remote end will receive no more data (after queued data is flushed).
+--
+-- > close sock = tryIO $ Control.Proxy.Network.TCP.close sock
+close :: P.Proxy p => NS.Socket -> P.ExceptionP p a' a b' b P.SafeIO ()
+close = P.tryIO . T.close

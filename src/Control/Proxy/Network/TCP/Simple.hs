@@ -41,10 +41,10 @@ runClient
   -> NS.ServiceName    -- ^Server service name (port).
   -> Application p r   -- ^Applicatoin
   -> IO r
-runClient host port app = E.bracket conn close use
+runClient host port app = E.bracket conn close' use
   where
     conn = connect host port
-    close (sock,_) = NS.sClose sock
+    close' (sock,_) = close sock
     use (sock,addr) = app addr (socketP 4096 sock, socketC sock)
 
 
@@ -58,10 +58,10 @@ runServer
                              --  socket has been bound.
   -> Application p r         -- ^Application handling an incomming connection.
   -> IO r
-runServer hp port afterBind app = E.bracket bind close use
+runServer hp port afterBind app = E.bracket bind close' use
   where
     bind = listen hp port
-    close (lsock,_) = NS.sClose lsock
+    close' (lsock,_) = close lsock
     use (lsock,laddr) = do
       afterBind laddr
       forever . acceptFork lsock $ \(csock,caddr) -> do

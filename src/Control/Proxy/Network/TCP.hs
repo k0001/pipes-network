@@ -26,6 +26,7 @@ module Control.Proxy.Network.TCP (
   -- * Low level support
   listen,
   connect,
+  close,
   -- * Exports
   HostPreference(..)
   ) where
@@ -53,10 +54,10 @@ withServer
                                    --  socket and the address it's bound to.
   -> IO r
 withServer hp port =
-    E.bracket bind close
+    E.bracket bind close'
   where
     bind = listen hp port
-    close (s,_) = NS.sClose s
+    close' (s,_) = NS.sClose s
 
 
 -- | Connect to a TCP server and use the connection.
@@ -71,10 +72,10 @@ withClient
                                    --  address.
   -> IO r
 withClient host port =
-    E.bracket connect' close
+    E.bracket connect' close'
   where
     connect' = connect host port
-    close (s,_) = NS.sClose s
+    close' (s,_) = NS.sClose s
 
 
 -- | Accept an incomming connection and use it.
@@ -136,6 +137,12 @@ socketC sock = P.runIdentityK . P.foreverK $ loop where
 --------------------------------------------------------------------------------
 
 -- | Attempt to connect to the given host name and service name (port).
+--
+-- The obtained 'NS.Socket' should be closed manually using 'close' when it's
+-- not needed anymore, otherwise it will remain open.
+--
+-- Prefer to use 'withClient' if you will be using the socket within a limited
+-- scope and would like it to be closed immediately after its usage.
 connect :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
 -- TODO Abstract away socket type.
 connect host port = do
@@ -152,11 +159,16 @@ connect host port = do
 -- | Attempt to bind a listening 'NS.Socket' on the given host preference and
 -- service port.
 --
+-- The obtained 'NS.Socket' should be closed manually using 'close' when it's
+-- not needed anymore, otherwise it will remain open.
+--
+-- Prefer to use 'withServer' if you will be using the socket within a limited
+-- scope and would like it to be closed immediately after its usage.
+--
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
 -- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
 -- default size of the listening queue.
 listen :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
--- TODO Abstract away socket type.
 listen hp port = do
     addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just $ show port)
     let addrs' = case hp of
@@ -180,6 +192,12 @@ listen hp port = do
       NS.bindSocket sock sockAddr
       NS.listen sock (max 2048 NS.maxListenQueue)
       return (sock, sockAddr)
+
+
+-- | Close the socket. All future operations on the socket object will fail. The
+-- remote end will receive no more data (after queued data is flushed).
+close :: NS.Socket -> IO ()
+close = NS.sClose
 
 
 -- Misc
