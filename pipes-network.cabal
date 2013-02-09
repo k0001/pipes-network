@@ -16,10 +16,6 @@ Synopsis: Use network sockets together with the pipes library.
 Description: Use network sockets together with the pipes library.
 Cabal-version: >=1.8
 
-Flag examples
-  Description: Build examples
-  Default:     False
-
 Source-Repository head
     Type: git
     Location: git://github.com/k0001/pipes-network.git
@@ -39,39 +35,3 @@ Library
         Control.Proxy.Network.TCP.Simple
         Control.Proxy.Safe.Network.TCP
     ghc-options: -Wall -fno-warn-unused-do-bind
-
-Executable example-echo-tcp
-  if !flag(examples)
-      Buildable: False
-
-  Hs-source-dirs:      examples
-  Main-is:             echo-tcp.hs
-  Build-depends:
-        base ==4.5.*,
-        bytestring (== 0.9.*),
-        network,
-        pipes (>=3.1),
-        pipes-safe (>=1.0),
-        transformers (>= 0.2 && < 0.4),
-        pipes-network
-  ghc-options: -Wall -fno-warn-unused-do-bind
-
-
-Executable example-interactive-tcp
-  if !flag(examples)
-      Buildable: False
-
-  Hs-source-dirs:      examples
-  Main-is:             interactive-tcp.hs
-  Build-depends:
-        base ==4.5.*,
-        bytestring (== 0.9.*),
-        network,
-        pipes (>=3.1),
-        pipes-safe (>=1.0),
-        transformers (>= 0.2 && < 0.4),
-        monads-tf (>= 0.1.0.1),
-        pipes-network
-  ghc-options: -Wall -fno-warn-unused-do-bind
-
-
