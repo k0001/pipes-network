@@ -149,7 +149,7 @@ acceptFork lsock f = do
 -- producing.
 socketP
   :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive.
+  => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer p B.ByteString IO ()
 socketP nbytes sock () = P.runIdentityP loop where
@@ -204,7 +204,7 @@ connect host port = do
 -- default size of the listening queue.
 listen :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
 listen hp port = do
-    addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just $ show port)
+    addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just port)
     let addrs' = case hp of
           HostIPv4 -> prioritize isIPv4addr addrs
           HostIPv6 -> prioritize isIPv6addr addrs
