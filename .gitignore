@@ -1,0 +1,9 @@
+*~
+\#*
+.\#*
+*.swo
+*.swp
+*.swn
+cabal-dev
+dist
+TAGS
