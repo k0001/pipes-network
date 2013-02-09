@@ -22,6 +22,9 @@ module Control.Proxy.Safe.Network.TCP (
   -- * Client side
   -- $client-side
   withClient,
+  -- ** Quick one-time clients
+  clientP,
+  clientC,
   -- * Socket proxies
   -- $socket-proxies
   socketP,
@@ -77,6 +80,54 @@ withClient morph host port =
     connect' = T.connect host port
     close' (s,_) = NS.sClose s
 
+
+--------------------------------------------------------------------------------
+
+-- | Connect to a TCP server and send downstream the bytes received from the
+-- remote end.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy stops
+-- producing.
+--
+-- The connection socket is closed when done or in case of exceptions.
+--
+-- Using this proxy you can write straightforward code like the following, which
+-- prints whatever is received from a single TCP connection to a given server
+-- listening locally on port 9000:
+--
+-- > let session = clientP "127.0.0.1" "9000" >-> tryK printD
+-- > runSafeIO . runProxy . runEitherK $ session
+clientP
+  :: P.Proxy p
+  => Int                         -- ^Maximum number of bytes to receive at once.
+  -> NS.HostName                 -- ^Server host name.
+  -> NS.ServiceName              -- ^Server service name (port).
+  -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
+clientP nbytes host port () = do
+   withClient id host port $ \(csock,_) -> do
+     socketP nbytes csock ()
+
+
+-- | Connect to a TCP server and send to the remote end the bytes received from
+-- upstream.
+--
+-- The connection socket is closed when done or in case of exceptions.
+--
+-- Using this proxy you can write straightforward code like the following, which
+-- greets a TCP client listening locally at port 9000:
+--
+-- > let session = fromListS ["He","llo\r\n"] >-> clientC "127.0.0.1" "9000"
+-- > runSafeIO . runProxy . runEitherK $ session
+clientC
+  :: P.Proxy p
+  => NS.HostName                 -- ^Server host name.
+  -> NS.ServiceName              -- ^Server service name (port).
+  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
+clientC hp port () = do
+   withClient id hp port $ \(csock,_) ->
+     socketC csock ()
 
 --------------------------------------------------------------------------------
 
