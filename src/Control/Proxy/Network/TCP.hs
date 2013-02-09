@@ -141,9 +141,10 @@ acceptFork lsock f = do
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
 -- to send to and receive from the other connection end.
 
--- | Socket 'P.Producer'. Receives bytes from a 'NS.Socket'.
+-- | Socket 'P.Producer'. Receives bytes from the 'NS.Socket' remote end and
+-- sends them downstream.
 --
--- Less than the specified maximum number of bytes might be received.
+-- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy stops
 -- producing.
@@ -157,7 +158,8 @@ socketP nbytes sock () = P.runIdentityP loop where
               unless (B.null bs) $ P.respond bs >> loop
 
 
--- | Socket 'P.Consumer'. Sends bytes to a 'NS.Socket'.
+-- | Socket 'P.Consumer'. Sends to a the 'NS.Socket' remote end the bytes
+-- received from upstream.
 socketC
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
