@@ -26,6 +26,7 @@ module Control.Proxy.Safe.Network.TCP (
   -- ** Quick one-time clients
   clientP,
   clientC,
+  clientS,
   -- * Socket proxies
   -- $socket-proxies
   socketP,
@@ -129,6 +130,28 @@ clientC
 clientC hp port () = do
    withClient id hp port $ \(csock,_) ->
      socketC csock ()
+
+
+-- | Connect to a TCP server and optionally send to the remote end any bytes
+-- received from downstream, and then send downstream the bytes received from
+-- the remote end.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
+--
+-- Both the listening and connection socket are closed when done or in case of
+-- exceptions.
+clientS
+  :: P.Proxy p
+  => Int                         -- ^Maximum number of bytes to receive at once.
+  -> NS.HostName                 -- ^Server host name.
+  -> NS.ServiceName              -- ^Server service name (port).
+  -> Maybe B.ByteString
+  -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
+clientS nbytes host port b' = do
+   withClient id host port $ \(csock,_) -> do
+     socketS nbytes csock b'
 
 --------------------------------------------------------------------------------
 
