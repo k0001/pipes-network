@@ -349,11 +349,10 @@ socketS nbytes sock = loop where
 -- | Socket proxy with open downstream and upstream interfaces that sends and
 -- receives bytes to a remote end.
 --
--- Requests from downstream are forwarded upstream, and in exchange, a
--- 'Maybe' is expected. If such value is 'Nothing' then receive bytes
--- from the remote end and send them downstream, otherwise send the given
--- bytes to the remote end and then receive bytes from the remote end and
--- send them downstream.
+-- Requests from downstream are forwarded upstream, and in exchange, optional
+-- bytes to be sent to the remote end are expected. If such value is 'Nothing'
+-- then skip sending anything to the remote end, otherwise do. Then receive
+-- bytes from tbe remote end and send them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
