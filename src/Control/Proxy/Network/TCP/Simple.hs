@@ -39,7 +39,7 @@ runClient
   :: P.Proxy p
   => NS.HostName       -- ^Server hostname.
   -> NS.ServiceName    -- ^Server service name (port).
-  -> Application p r   -- ^Applicatoin
+  -> Application p r   -- ^Application
   -> IO r
 runClient host port app = E.bracket conn close' use
   where

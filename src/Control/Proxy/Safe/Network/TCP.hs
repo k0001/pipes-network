@@ -299,7 +299,7 @@ serverS nbytes hp port b' = do
 -- to send to and receive from the other connection end.
 
 
--- | Socket proxy 'P.Producer'. Receives bytes from the 'NS.Socket' remote end
+-- | Socket 'P.Producer' proxy. Receives bytes from the 'NS.Socket' remote end
 -- and sends them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
@@ -315,7 +315,7 @@ socketP nbytes sock () = loop where
               unless (B.null bs) $ P.respond bs >> loop
 
 
--- | Socket proxy 'P.Consumer'. Sends to a the 'NS.Socket' remote end the bytes
+-- | Socket 'P.Consumer' proxy. Sends to the 'NS.Socket' remote end the bytes
 -- received from upstream.
 socketC
   :: P.Proxy p
@@ -325,7 +325,7 @@ socketC sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
 
 
--- | Socket proxy 'P.Server' (do not confuse with a TCP server).
+-- | Socket 'P.Server' proxy (do not confuse with a TCP server).
 --
 -- If a 'Just' value is received from downstream, then send such value to
 -- the 'NS.Socket' remote end, and finally, receive bytes from the remote end
