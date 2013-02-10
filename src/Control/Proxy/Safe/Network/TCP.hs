@@ -132,9 +132,9 @@ clientC hp port () = do
      socketC csock ()
 
 
--- | Connect to a TCP server and optionally send to the remote end any bytes
--- received from downstream, and then send downstream the bytes received from
--- the remote end.
+-- | Connect to a TCP server and send to the remote end any bytes received
+-- from downstream, then send downstream the bytes received from the remote
+-- end.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -280,9 +280,9 @@ serverC hp port () = do
 -- exceptions.
 serverS
   :: P.Proxy p
-  => Int
-  -> HostPreference
-  -> NS.ServiceName
+  => Int                         -- ^Maximum number of bytes to receive at once.
+  -> HostPreference              -- ^Preferred host to bind to.
+  -> NS.ServiceName              -- ^Service name (port) to bind to.
   -> Maybe B.ByteString
   -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
 serverS nbytes hp port b' = do
