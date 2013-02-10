@@ -32,6 +32,7 @@ module Control.Proxy.Safe.Network.TCP (
   socketP,
   socketC,
   socketS,
+  socketB,
   -- * Low level support
   -- $low-level
   listen,
@@ -340,6 +341,35 @@ socketS
 socketS nbytes sock = loop where
     loop Nothing   = recv'
     loop (Just b') = send' b' >> recv'
+    send' = P.tryIO . sendAll sock
+    recv' = do bs <- P.tryIO $ recv sock nbytes
+               unless (B.null bs) $ P.respond bs >>= loop
+
+
+-- | Socket proxy with open downstream and upstream interfaces that sends and
+-- receives bytes to a remote end.
+--
+-- Requests from downstream are forwarded upstream, and in exchange, a
+-- 'Maybe' is expected. If such value is 'Nothing' then receive bytes
+-- from the remote end and send them downstream, otherwise send the given
+-- bytes to the remote end and then receive bytes from the remote end and
+-- send them downstream.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
+socketB
+  :: P.Proxy p
+  => Int                -- ^Maximum number of bytes to receive at once.
+  -> NS.Socket          -- ^Connected socket.
+  -> a'
+  -> (P.ExceptionP p) a' (Maybe B.ByteString) a' B.ByteString P.SafeIO ()
+socketB nbytes sock = loop where
+    loop b' = do
+      ma <- P.request b'
+      case ma of
+        Nothing -> recv'
+        Just a  -> send' a >> recv'
     send' = P.tryIO . sendAll sock
     recv' = do bs <- P.tryIO $ recv sock nbytes
                unless (B.null bs) $ P.respond bs >>= loop
