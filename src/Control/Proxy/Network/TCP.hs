@@ -169,14 +169,8 @@ socketC sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 
 
--- | Socket 'P.Server' proxy (do not confuse with a TCP server).
---
--- If a 'Just' value is received from downstream, then send such value to
--- the 'NS.Socket' remote end, and finally, receive bytes from the remote end
--- and send them downstream.
---
--- If 'Nothing' is received from downstream, then only receive bytes from the
--- remote end and send them downstream.
+-- | Socket 'P.Server' proxy. Sends to the remote end any bytes received from
+-- downstream, then sends downstream any bytes received from the remote end.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
