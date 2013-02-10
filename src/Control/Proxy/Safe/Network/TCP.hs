@@ -90,8 +90,7 @@ withClient morph host port =
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy stops
--- producing.
+-- If the remote peer closes its side of the connection, this proxy returns.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -202,8 +201,7 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy stops
--- producing.
+-- If the remote peer closes its side of the connection, this proxy returns.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
