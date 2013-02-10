@@ -26,6 +26,7 @@ module Control.Proxy.Network.TCP (
   -- $socket-proxies
   socketP,
   socketC,
+  socketS,
   -- * Low level support
   listen,
   connect,
@@ -33,6 +34,7 @@ module Control.Proxy.Network.TCP (
   -- * Exports
   HostPreference(..)
   ) where
+
 
 import           Control.Concurrent (ThreadId, forkIO)
 import qualified Control.Exception as E
@@ -168,6 +170,31 @@ socketC sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 
 
+-- | Socket proxy 'P.Server' (do not confuse with a TCP server).
+--
+-- If a 'Just' value is received from downstream, then send such value to
+-- the 'NS.Socket' remote end, and finally, receive bytes from the remote end
+-- and send them downstream.
+--
+-- If 'Nothing' is received from downstream, then only receive bytes from the
+-- remote end and send them downstream.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
+socketS
+  :: P.Proxy p
+  => Int                -- ^Maximum number of bytes to receive at once.
+  -> NS.Socket          -- ^Connected socket.
+  -> Maybe B.ByteString
+  -> P.Server p (Maybe B.ByteString) B.ByteString IO ()
+socketS nbytes sock = P.runIdentityK loop where
+    loop Nothing   = recv'
+    loop (Just b') = send' b' >> recv'
+    send' = lift . sendAll sock
+    recv' = do bs <- lift $ recv sock nbytes
+               unless (B.null bs) $ P.respond bs >>= loop
+
 --------------------------------------------------------------------------------
 
 -- | Attempt to connect to the given host name and service name (port).
@@ -251,3 +278,4 @@ isIPv6addr x = NS.addrFamily x == NS.AF_INET6
 -- Preserve relative order.
 prioritize :: (a -> Bool) -> [a] -> [a]
 prioritize p = uncurry (++) . partition p
+

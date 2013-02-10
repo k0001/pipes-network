@@ -29,6 +29,7 @@ module Control.Proxy.Safe.Network.TCP (
   -- $socket-proxies
   socketP,
   socketC,
+  socketS,
   -- * Low level support
   -- $low-level
   listen,
@@ -279,6 +280,32 @@ socketC sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
 
 
+-- | Socket proxy 'P.Server' (do not confuse with a TCP server).
+--
+-- If a 'Just' value is received from downstream, then send such value to
+-- the 'NS.Socket' remote end, and finally, receive bytes from the remote end
+-- and send them downstream.
+--
+-- If 'Nothing' is received from downstream, then only receive bytes from the
+-- remote end and send them downstream.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
+socketS
+  :: P.Proxy p
+  => Int                -- ^Maximum number of bytes to receive at once.
+  -> NS.Socket          -- ^Connected socket.
+  -> Maybe B.ByteString
+  -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
+socketS nbytes sock = loop where
+    loop Nothing   = recv'
+    loop (Just b') = send' b' >> recv'
+    send' = P.tryIO . sendAll sock
+    recv' = do bs <- P.tryIO $ recv sock nbytes
+               unless (B.null bs) $ P.respond bs >>= loop
+
+
 --------------------------------------------------------------------------------
 
 -- $low-level
@@ -334,6 +361,5 @@ listen hp port = P.tryIO $ T.listen hp port
 -- > close sock = tryIO $ Control.Proxy.Network.TCP.close sock
 close :: P.Proxy p => NS.Socket -> P.ExceptionP p a' a b' b P.SafeIO ()
 close = P.tryIO . T.close
-
 
 
