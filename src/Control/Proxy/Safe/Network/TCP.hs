@@ -20,6 +20,7 @@ module Control.Proxy.Safe.Network.TCP (
   serverP,
   serverC,
   serverS,
+  serverB,
   -- * Client side
   -- $client-side
   withClient,
@@ -290,6 +291,28 @@ serverS nbytes hp port b' = do
    withServer id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
        socketS nbytes csock b'
+
+-- | Bind a listening socket, accept a single connection and send to the remote
+-- end any bytes received from upstream after forwarding upstream the request
+-- from downstream, then send downstream any bytes received from the remote end.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
+--
+-- Both the listening and connection socket are closed when done or in case of
+-- exceptions.
+serverB
+  :: P.Proxy p
+  => Int                         -- ^Maximum number of bytes to receive at once.
+  -> HostPreference              -- ^Preferred host to bind to.
+  -> NS.ServiceName              -- ^Service name (port) to bind to.
+  -> a'
+  -> (P.ExceptionP p) a' (Maybe B.ByteString) a' B.ByteString P.SafeIO ()
+serverB nbytes hp port b' = do
+   withServer id hp port $ \(lsock,_) -> do
+     accept id lsock $ \(csock,_) -> do
+       socketB nbytes csock b'
 
 
 --------------------------------------------------------------------------------
