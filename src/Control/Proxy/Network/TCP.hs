@@ -28,7 +28,9 @@ module Control.Proxy.Network.TCP (
   nsocketP,
   socketC,
   socketS,
+  nsocketS,
   socketB,
+  nsocketB,
   -- * Low level support
   listen,
   connect,
@@ -160,7 +162,7 @@ socketP nbytes sock () = P.runIdentityP loop where
     loop = do bs <- lift $ recv sock nbytes
               unless (B.null bs) $ P.respond bs >> loop
 
--- | 'Socket 'P.Server' proxy. Similar to 'socketP', except it gets the
+-- | Socket 'P.Server' proxy similar to 'socketP', except it gets the
 -- maximum number of bytes to receive from downstream.
 nsocketP
   :: P.Proxy p
@@ -168,8 +170,9 @@ nsocketP
   -> Int
   -> P.Server p Int B.ByteString IO ()
 nsocketP sock = P.runIdentityK loop where
-    loop nbytes = do bs <- lift $ recv sock nbytes
-                     unless (B.null bs) $ P.respond bs >>= loop
+    loop nbytes = do
+      bs <- lift $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >>= loop
 
 
 -- | Socket 'P.Consumer' proxy. Sends to the 'NS.Socket' remote end the bytes
@@ -202,6 +205,22 @@ socketS nbytes sock = P.runIdentityK loop where
                unless (B.null bs) $ P.respond bs >>= loop
 
 
+-- | Socket 'P.Server' proxy similar to 'socketS', except it gets the
+-- maximum number of bytes to receive from downstream.
+nsocketS
+  :: P.Proxy p
+  => NS.Socket          -- ^Connected socket.
+  -> (Int, Maybe B.ByteString)
+  -> P.Server p (Int, Maybe B.ByteString) B.ByteString IO ()
+nsocketS sock = P.runIdentityK loop where
+    loop (n, Nothing) = recv' n
+    loop (n, Just b') = send' b' >> recv' n
+    send' = lift . sendAll sock
+    recv' nbytes = do
+      bs <- lift $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >>= loop
+
+
 -- | Socket proxy with open downstream and upstream interfaces that sends and
 -- receives bytes to a remote end.
 --
@@ -229,6 +248,24 @@ socketB nbytes sock = P.runIdentityK loop where
     recv' = do bs <- lift $ recv sock nbytes
                unless (B.null bs) $ P.respond bs >>= loop
 
+
+-- | Socket proxy similar to 'socketB', except it gets the- maximum number of
+-- bytes to receive from downstream.
+nsocketB
+  :: P.Proxy p
+  => NS.Socket          -- ^Connected socket.
+  -> (Int, a')
+  -> p a' (Maybe B.ByteString) (Int, a') B.ByteString IO ()
+nsocketB sock = P.runIdentityK loop where
+    loop (n,b') = do
+      ma <- P.request b'
+      case ma of
+        Nothing -> recv' n
+        Just a  -> send' a >> recv' n
+    send' = lift . sendAll sock
+    recv' nbytes = do
+      bs <- lift $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >>= loop
 
 --------------------------------------------------------------------------------
 

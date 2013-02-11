@@ -35,7 +35,9 @@ module Control.Proxy.Safe.Network.TCP (
   nsocketP,
   socketC,
   socketS,
+  nsocketS,
   socketB,
+  nsocketB,
   -- * Low level support
   -- $low-level
   listen,
@@ -361,7 +363,7 @@ socketP nbytes sock () = loop where
     loop = do bs <- P.tryIO $ recv sock nbytes
               unless (B.null bs) $ P.respond bs >> loop
 
--- | 'Socket 'P.Server' proxy. Similar to 'socketP', except it gets the
+-- | 'Socket 'P.Server' proxy similar to 'socketP', except it gets the
 -- maximum number of bytes to receive from downstream.
 nsocketP
   :: P.Proxy p
@@ -403,6 +405,22 @@ socketS nbytes sock = loop where
                unless (B.null bs) $ P.respond bs >>= loop
 
 
+-- | Socket 'P.Server' proxy similar to 'socketS', except it gets the
+-- maximum number of bytes to receive from downstream.
+nsocketS
+  :: P.Proxy p
+  => NS.Socket          -- ^Connected socket.
+  -> (Int, Maybe B.ByteString)
+  -> P.Server (P.ExceptionP p) (Int, Maybe B.ByteString) B.ByteString P.SafeIO ()
+nsocketS sock = loop where
+    loop (n, Nothing) = recv' n
+    loop (n, Just b') = send' b' >> recv' n
+    send' = P.tryIO . sendAll sock
+    recv' nbytes = do
+      bs <- P.tryIO $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >>= loop
+
+
 -- | Socket proxy with open downstream and upstream interfaces that sends and
 -- receives bytes to a remote end.
 --
@@ -429,6 +447,25 @@ socketB nbytes sock = loop where
     send' = P.tryIO . sendAll sock
     recv' = do bs <- P.tryIO $ recv sock nbytes
                unless (B.null bs) $ P.respond bs >>= loop
+
+
+-- | Socket proxy similar to 'socketB', except it gets the maximum number of
+-- bytes to receive from downstream.
+nsocketB
+  :: P.Proxy p
+  => NS.Socket          -- ^Connected socket.
+  -> (Int,a')
+  -> (P.ExceptionP p) a' (Maybe B.ByteString) (Int,a') B.ByteString P.SafeIO ()
+nsocketB sock = loop where
+    loop (n,b') = do
+      ma <- P.request b'
+      case ma of
+        Nothing -> recv' n
+        Just a  -> send' a >> recv' n
+    send' = P.tryIO . sendAll sock
+    recv' nbytes = do
+      bs <- P.tryIO $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >>= loop
 
 
 --------------------------------------------------------------------------------
