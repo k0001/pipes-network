@@ -32,6 +32,7 @@ module Control.Proxy.Safe.Network.TCP (
   -- * Socket proxies
   -- $socket-proxies
   socketP,
+  nsocketP,
   socketC,
   socketS,
   socketB,
@@ -359,6 +360,17 @@ socketP
 socketP nbytes sock () = loop where
     loop = do bs <- P.tryIO $ recv sock nbytes
               unless (B.null bs) $ P.respond bs >> loop
+
+-- | 'Socket 'P.Server' proxy. Similar to 'socketP', except it gets the
+-- maximum number of bytes to receive from downstream.
+nsocketP
+  :: P.Proxy p
+  => NS.Socket          -- ^Connected socket.
+  -> Int
+  -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
+nsocketP sock = loop where
+    loop nbytes = do bs <- P.tryIO $ recv sock nbytes
+                     unless (B.null bs) $ P.respond bs >>= loop
 
 
 -- | Socket 'P.Consumer' proxy. Sends to the 'NS.Socket' remote end the bytes
