@@ -152,9 +152,11 @@ clientS nbytes host port b' = do
    withClient id host port $ \(csock,_) -> do
      socketS nbytes csock b'
 
--- | Connect to a TCP server and send to the remote end any bytes received from
--- upstream after forwarding upstream the request from downstream, then send
--- downstream any bytes received from the remote end, by means of 'socketB'.
+-- | Connect to a TCP server and use the connection with 'socketB', which
+-- forwards upstream request from downstream, and expectes in exchange optional
+-- bytes to send to the remote end. If no bytes are provided, then skip sending
+-- anything to the remote end, otherwise do. Then receive bytes from tbe remote
+-- end and send them downstream.
 --
 -- The connection socket is are closed when done or in case of exceptions.
 clientB
@@ -322,9 +324,12 @@ serverS nbytes hp port b' = do
    withServerAccept id hp port $ \(csock,_) -> do
      socketS nbytes csock b'
 
--- | Bind a listening socket, accept a single connection and send to the remote
--- end any bytes received from upstream after forwarding upstream the request
--- from downstream, then send downstream any bytes received from the remote end.
+
+-- | Bind a listening socket, accept a single connection and use it with
+-- 'socketB', which forwards upstream request from downstream, and expectes in
+-- exchange optional bytes to send to the remote end. If no bytes are provided,
+-- then skip sending anything to the remote end, otherwise do. Then receive
+-- bytes from tbe remote end and send them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -352,8 +357,8 @@ serverB nbytes hp port b' = do
 -- to send to and receive from the other connection end.
 
 
--- | Socket 'P.Producer' proxy. Receives bytes from the 'NS.Socket' remote end
--- and sends them downstream.
+-- | Socket 'P.Producer' proxy. Receives bytes from the remote end and sends
+-- them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -379,8 +384,8 @@ nsocketP sock = loop where
                      unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket 'P.Consumer' proxy. Sends to the 'NS.Socket' remote end the bytes
--- received from upstream.
+-- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
+-- from upstream.
 socketC
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
@@ -425,7 +430,7 @@ nsocketS sock = loop where
       unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket proxy with open downstream and upstream interfaces that sends and
+-- | Socket 'P.Proxy' with open downstream and upstream interfaces that sends and
 -- receives bytes to a remote end.
 --
 -- This proxy forwards upstream request from downstream, and expectes in
@@ -453,7 +458,7 @@ socketB nbytes sock = loop where
                unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket proxy similar to 'socketB', except it gets the maximum number of
+-- | Socket 'P.Proxy' similar to 'socketB', except it gets the maximum number of
 -- bytes to receive from downstream.
 nsocketB
   :: P.Proxy p

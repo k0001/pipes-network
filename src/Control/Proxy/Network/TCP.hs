@@ -164,8 +164,8 @@ acceptFork lsock f = do
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
 -- to send to and receive from the other connection end.
 
--- | Socket 'P.Producer' proxy. Receives bytes from the 'NS.Socket' remote end
--- sends them downstream.
+-- | Socket 'P.Producer' proxy. Receives bytes from the remote end sends them
+-- downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -192,8 +192,8 @@ nsocketP sock = P.runIdentityK loop where
       unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket 'P.Consumer' proxy. Sends to the 'NS.Socket' remote end the bytes
--- received from upstream.
+-- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
+-- from upstream.
 socketC
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
@@ -238,8 +238,8 @@ nsocketS sock = P.runIdentityK loop where
       unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket proxy with open downstream and upstream interfaces that sends and
--- receives bytes to a remote end.
+-- | Socket 'P.Proxy' with open downstream and upstream interfaces that sends
+-- and receives bytes to a remote end.
 --
 -- This proxy forwards upstream request from downstream, and expectes in
 -- exchange optional bytes to send to the remote end. If no bytes are provided,
@@ -266,8 +266,8 @@ socketB nbytes sock = P.runIdentityK loop where
                unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket proxy similar to 'socketB', except it gets the- maximum number of
--- bytes to receive from downstream.
+-- | Socket 'P.Proxy' similar to 'socketB', except it gets the- maximum number
+-- of bytes to receive from downstream.
 nsocketB
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
