@@ -257,7 +257,7 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 --------------------------------------------------------------------------------
 
 -- | Bind a listening socket, accept a single connection and send downstream
--- any bytes received from the remote end.
+-- any bytes received from the remote end, by means of 'socketP'.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -283,7 +283,7 @@ serverP nbytes hp port () = do
 
 
 -- | Bind a listening socket, accept a single connection and send to the
--- remote end any bytes received from upstream.
+-- remote end any bytes received from upstream, by means of 'socketC'.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -305,7 +305,7 @@ serverC hp port () = do
 
 -- | Bind a listening socket, accept a single connection and send to the remote
 -- end any bytes received from downstream, then send downstream any bytes
--- received from the remote end.
+-- received from the remote end, by means of 'socketS'.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
