@@ -93,11 +93,7 @@ withClient morph host port =
 --------------------------------------------------------------------------------
 
 -- | Connect to a TCP server and send downstream the bytes received from the
--- remote end.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
+-- remote end, by means of 'socketP'.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -119,7 +115,7 @@ clientP nbytes host port () = do
 
 
 -- | Connect to a TCP server and send to the remote end the bytes received from
--- upstream.
+-- upstream, by means of 'socketC'.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -140,13 +136,9 @@ clientC hp port () = do
 
 -- | Connect to a TCP server and send to the remote end any bytes received
 -- from downstream, then send downstream the bytes received from the remote
--- end.
+-- end, by means of 'socketS'.
 --
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
---
--- Both the listening and connection socket are closed when done or in case of
+-- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 clientS
   :: P.Proxy p
@@ -161,11 +153,7 @@ clientS nbytes host port b' = do
 
 -- | Connect to a TCP server and send to the remote end any bytes received from
 -- upstream after forwarding upstream the request from downstream, then send
--- downstream any bytes received from the remote end.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
+-- downstream any bytes received from the remote end, by means of 'socketB'.
 --
 -- The connection socket is are closed when done or in case of exceptions.
 clientB
