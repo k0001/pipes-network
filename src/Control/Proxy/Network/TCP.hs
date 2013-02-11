@@ -17,6 +17,7 @@ module Control.Proxy.Network.TCP (
   -- * Server side
   -- $server-side
   withServer,
+  withServerAccept,
   accept,
   acceptFork,
   -- * Client side
@@ -107,6 +108,22 @@ withServer hp port =
   where
     bind = listen hp port
     close' (s,_) = NS.sClose s
+
+
+-- | Start a TCP server, accept an incomming connection and use it.
+--
+-- Both the listening and connection socket are closed when done or in case of
+-- exceptions.
+withServerAccept
+  :: HostPreference                -- ^Preferred host to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> ((NS.Socket, NS.SockAddr) -> IO r)
+                                   -- ^Guarded computation taking the listening
+                                   --  socket and the address it's bound to.
+  -> IO r
+withServerAccept hp port k = do
+    withServer hp port $ \(lsock,_) -> do
+      accept lsock k
 
 
 -- | Accept an incomming connection and use it.

@@ -14,6 +14,7 @@ module Control.Proxy.Safe.Network.TCP (
   -- * Server side
   -- $server-side
   withServer,
+  withServerAccept,
   accept,
   acceptFork,
   -- ** Quick one-time servers
@@ -197,6 +198,25 @@ withServer morph hp port =
     close' (s,_) = NS.sClose s
 
 
+-- | Start a TCP server, accept an incomming connection and use it.
+--
+-- Both the listening and connection socket are closed when done or in case of
+-- exceptions.
+withServerAccept
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> HostPreference                -- ^Preferred host to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+                                   -- ^Computation to run once an incomming
+                                   --  connection is accepted. Takes the
+                                   --  connection socket and remote end address.
+  -> P.ExceptionP p a' a b' b m r
+withServerAccept morph hp port k = do
+   withServer morph hp port $ \(lsock,_) -> do
+     accept morph lsock k
+
+
 -- | Accept an incomming connection and use it.
 --
 -- The connection socket is closed when done or in case of exceptions.
@@ -256,9 +276,8 @@ serverP
   -> NS.ServiceName              -- ^Service name (port) to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 serverP nbytes hp port () = do
-   withServer id hp port $ \(lsock,_) -> do
-     accept id lsock $ \(csock,_) -> do
-       socketP nbytes csock ()
+   withServerAccept id hp port $ \(csock,_) -> do
+     socketP nbytes csock ()
 
 
 -- | Bind a listening socket, accept a single connection and send to the
@@ -278,9 +297,8 @@ serverC
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
 serverC hp port () = do
-   withServer id hp port $ \(lsock,_) -> do
-     accept id lsock $ \(csock,_) -> do
-       socketC csock ()
+   withServerAccept id hp port $ \(csock,_) -> do
+     socketC csock ()
 
 
 -- | Bind a listening socket, accept a single connection and send to the remote
@@ -301,9 +319,8 @@ serverS
   -> Maybe B.ByteString
   -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
 serverS nbytes hp port b' = do
-   withServer id hp port $ \(lsock,_) -> do
-     accept id lsock $ \(csock,_) -> do
-       socketS nbytes csock b'
+   withServerAccept id hp port $ \(csock,_) -> do
+     socketS nbytes csock b'
 
 -- | Bind a listening socket, accept a single connection and send to the remote
 -- end any bytes received from upstream after forwarding upstream the request
@@ -323,9 +340,8 @@ serverB
   -> a'
   -> (P.ExceptionP p) a' (Maybe B.ByteString) a' B.ByteString P.SafeIO ()
 serverB nbytes hp port b' = do
-   withServer id hp port $ \(lsock,_) -> do
-     accept id lsock $ \(csock,_) -> do
-       socketB nbytes csock b'
+   withServerAccept id hp port $ \(csock,_) -> do
+     socketB nbytes csock b'
 
 
 --------------------------------------------------------------------------------
