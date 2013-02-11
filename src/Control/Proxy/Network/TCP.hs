@@ -241,8 +241,8 @@ nsocketS sock = P.runIdentityK loop where
 -- | Socket proxy with open downstream and upstream interfaces that sends and
 -- receives bytes to a remote end.
 --
--- Requests from downstream are forwarded upstream, and in exchange, optional
--- bytes to be sent to the remote end are expected. If such value is 'Nothing'
+-- This proxy forwards upstream request from downstream, and expectes in
+-- exchange optional bytes to send to the remote end. If no bytes are provided,
 -- then skip sending anything to the remote end, otherwise do. Then receive
 -- bytes from tbe remote end and send them downstream.
 --
