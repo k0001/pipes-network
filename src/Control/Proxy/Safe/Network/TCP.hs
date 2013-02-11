@@ -155,7 +155,7 @@ clientS nbytes host port b' = do
 -- | Connect to a TCP server and use the connection with 'socketB', which
 -- forwards upstream request from downstream, and expectes in exchange optional
 -- bytes to send to the remote end. If no bytes are provided, then skip sending
--- anything to the remote end, otherwise do. Then receive bytes from tbe remote
+-- anything to the remote end, otherwise do. Then receive bytes from the remote
 -- end and send them downstream.
 --
 -- The connection socket is are closed when done or in case of exceptions.
@@ -329,7 +329,7 @@ serverS nbytes hp port b' = do
 -- 'socketB', which forwards upstream request from downstream, and expectes in
 -- exchange optional bytes to send to the remote end. If no bytes are provided,
 -- then skip sending anything to the remote end, otherwise do. Then receive
--- bytes from tbe remote end and send them downstream.
+-- bytes from the remote end and send them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -436,7 +436,7 @@ nsocketS sock = loop where
 -- This proxy forwards upstream request from downstream, and expectes in
 -- exchange optional bytes to send to the remote end. If no bytes are provided,
 -- then skip sending anything to the remote end, otherwise do. Then receive
--- bytes from tbe remote end and send them downstream.
+-- bytes from the remote end and send them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
