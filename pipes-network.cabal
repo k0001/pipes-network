@@ -24,9 +24,9 @@ Library
     Hs-source-dirs: src
     Build-Depends:
         base (== 4.*),
-        bytestring (== 0.9.*),
+        bytestring (>= 0.9.2.1),
         network,
-        pipes (>=3.1),
+        pipes (==3.1.*),
         pipes-safe (>=1.0),
         transformers (>= 0.2 && < 0.4)
     Exposed-Modules:
