@@ -52,7 +52,7 @@ import           Control.Concurrent                        (forkIO, ThreadId)
 import qualified Control.Exception                         as E
 import           Control.Monad
 import qualified Control.Proxy                             as P
-import           Control.Proxy.Network
+import           Control.Proxy.Network.Util
 import qualified Control.Proxy.Network.TCP                 as T
 import qualified Control.Proxy.Safe                        as P
 import qualified Data.ByteString                           as B

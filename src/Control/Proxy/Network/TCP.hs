@@ -46,7 +46,7 @@ import qualified Control.Exception as E
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy as P
-import           Control.Proxy.Network
+import           Control.Proxy.Network.Util
 import qualified Data.ByteString as B
 import           Data.List (partition)
 import qualified Network.Socket as NS
