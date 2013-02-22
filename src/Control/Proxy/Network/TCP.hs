@@ -18,6 +18,7 @@ module Control.Proxy.Network.TCP (
   -- $server-side
   withServer,
   withServerAccept,
+  withServerAcceptFork,
   accept,
   acceptFork,
   -- * Client side
@@ -124,6 +125,25 @@ withServerAccept
 withServerAccept hp port k = do
     withServer hp port $ \(lsock,_) -> do
       accept lsock k
+
+
+-- | Start a TCP server, accept each incomming connection and use it on a
+-- different thread.
+--
+-- The listening and connection sockets are closed when done or in case of
+-- exceptions.
+withServerAcceptFork
+  :: HostPreference                -- ^Preferred host to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> ((NS.Socket, NS.SockAddr) -> IO ())
+                                   -- ^Computatation to run on a different
+                                   -- thread once an incomming connection is
+                                   -- accepted. Takes the connection socket
+                                   -- and remote end address.
+  -> IO ()
+withServerAcceptFork hp port k = do
+    withServer hp port $ \(lsock,_) -> do
+      forever $ acceptFork lsock k
 
 
 -- | Accept an incomming connection and use it.

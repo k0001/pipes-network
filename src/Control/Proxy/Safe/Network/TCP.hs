@@ -15,6 +15,7 @@ module Control.Proxy.Safe.Network.TCP (
   -- $server-side
   withServer,
   withServerAccept,
+  withServerAcceptFork,
   accept,
   acceptFork,
   -- ** Quick one-time servers
@@ -217,6 +218,26 @@ withServerAccept
 withServerAccept morph hp port k = do
    withServer morph hp port $ \(lsock,_) -> do
      accept morph lsock k
+
+
+-- | Start a TCP server, accept each incomming connection and use it on a
+-- different thread.
+--
+-- The listening and connection sockets are closed when done or in case of
+-- exceptions.
+withServerAcceptFork
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> HostPreference                -- ^Preferred host to bind to.
+  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> ((NS.Socket, NS.SockAddr) -> IO ())
+                                   -- ^Computation to run once an incomming
+                                   --  connection is accepted. Takes the
+                                   --  connection socket and remote end address.
+  -> P.ExceptionP p a' a b' b m r
+withServerAcceptFork morph hp port k = do
+   withServer morph hp port $ \(lsock,_) -> do
+     forever $ acceptFork morph lsock k
 
 
 -- | Accept an incomming connection and use it.
