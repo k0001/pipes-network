@@ -164,7 +164,7 @@ clientB
   => Int                         -- ^Maximum number of bytes to receive at once.
   -> NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
-  -> a'
+  -> Maybe a'
   -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
 clientB nbytes host port b' = do
    withClient id host port $ \(csock,_) -> do
@@ -460,14 +460,11 @@ socketB nbytes sock = loop where
 nsocketB
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> (Int,a')
-  -> (P.ExceptionP p) a' (Maybe B.ByteString) (Int,a') B.ByteString P.SafeIO ()
+  -> (Int, Maybe a')
+  -> (P.ExceptionP p) a' B.ByteString (Int, Maybe a') B.ByteString P.SafeIO ()
 nsocketB sock = loop where
-    loop (n,b') = do
-      ma <- P.request b'
-      case ma of
-        Nothing -> recv' n
-        Just a  -> send' a >> recv' n
+    loop (n, Nothing) = recv' n
+    loop (n, Just a') = P.request a' >>= send' >> recv' n
     send' = P.tryIO . sendAll sock
     recv' nbytes = do
       bs <- P.tryIO $ recv sock nbytes

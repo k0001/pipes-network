@@ -268,14 +268,11 @@ socketB nbytes sock = P.runIdentityK loop where
 nsocketB
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> (Int, a')
-  -> p a' (Maybe B.ByteString) (Int, a') B.ByteString IO ()
+  -> (Int, Maybe a')
+  -> p a' B.ByteString (Int, Maybe a') B.ByteString IO ()
 nsocketB sock = P.runIdentityK loop where
-    loop (n,b') = do
-      ma <- P.request b'
-      case ma of
-        Nothing -> recv' n
-        Just a  -> send' a >> recv' n
+    loop (n, Nothing) = recv' n
+    loop (n, Just a') = P.request a' >>= send' >> recv' n
     send' = lift . sendAll sock
     recv' nbytes = do
       bs <- lift $ recv sock nbytes
