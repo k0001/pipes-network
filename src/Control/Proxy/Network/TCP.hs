@@ -253,14 +253,11 @@ socketB
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
-  -> a'
-  -> p a' (Maybe B.ByteString) a' B.ByteString IO ()
+  -> Maybe a'
+  -> p a' B.ByteString (Maybe a') B.ByteString IO ()
 socketB nbytes sock = P.runIdentityK loop where
-    loop b' = do
-      ma <- P.request b'
-      case ma of
-        Nothing -> recv'
-        Just a  -> send' a >> recv'
+    loop Nothing   = recv'
+    loop (Just a') = P.request a' >>= send' >> recv'
     send' = lift . sendAll sock
     recv' = do bs <- lift $ recv sock nbytes
                unless (B.null bs) $ P.respond bs >>= loop

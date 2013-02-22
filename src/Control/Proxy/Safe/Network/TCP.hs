@@ -165,7 +165,7 @@ clientB
   -> NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
   -> a'
-  -> (P.ExceptionP p) a' (Maybe B.ByteString) a' B.ByteString P.SafeIO ()
+  -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
 clientB nbytes host port b' = do
    withClient id host port $ \(csock,_) -> do
      socketB nbytes csock b'
@@ -342,8 +342,8 @@ serverB
   => Int                         -- ^Maximum number of bytes to receive at once.
   -> HostPreference              -- ^Preferred host to bind to.
   -> NS.ServiceName              -- ^Service name (port) to bind to.
-  -> a'
-  -> (P.ExceptionP p) a' (Maybe B.ByteString) a' B.ByteString P.SafeIO ()
+  -> Maybe a'
+  -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
 serverB nbytes hp port b' = do
    withServerAccept id hp port $ \(csock,_) -> do
      socketB nbytes csock b'
@@ -445,14 +445,11 @@ socketB
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
-  -> a'
-  -> (P.ExceptionP p) a' (Maybe B.ByteString) a' B.ByteString P.SafeIO ()
+  -> Maybe a'
+  -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
 socketB nbytes sock = loop where
-    loop b' = do
-      ma <- P.request b'
-      case ma of
-        Nothing -> recv'
-        Just a  -> send' a >> recv'
+    loop Nothing   = recv'
+    loop (Just a') = P.request a' >>= send' >> recv'
     send' = P.tryIO . sendAll sock
     recv' = do bs <- P.tryIO $ recv sock nbytes
                unless (B.null bs) $ P.respond bs >>= loop
