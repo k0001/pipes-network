@@ -33,6 +33,5 @@ Library
         Control.Proxy.Network
         Control.Proxy.Network.Util
         Control.Proxy.Network.TCP
-        Control.Proxy.Network.TCP.Simple
         Control.Proxy.Safe.Network.TCP
     ghc-options: -Wall -fno-warn-unused-do-bind
