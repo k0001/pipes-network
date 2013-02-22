@@ -45,7 +45,7 @@ runClient host port app = E.bracket conn close' use
   where
     conn = connect host port
     close' (sock,_) = close sock
-    use (sock,addr) = app addr (socketP 4096 sock, socketC sock)
+    use (sock,addr) = app addr (socketReader 4096 sock, socketWriter sock)
 
 
 -- | Run a simple 'Application' TCP server handling each incomming connection
@@ -77,5 +77,5 @@ runServer hp port afterBind app = E.bracket bind close' use
     use (lsock,laddr) = do
       afterBind laddr
       forever . acceptFork lsock $ \(csock,caddr) -> do
-        void $ app caddr (socketP 4096 csock, socketC csock)
+        void $ app caddr (socketReader 4096 csock, socketWriter csock)
 

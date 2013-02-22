@@ -18,8 +18,8 @@ module Control.Proxy.Safe.Network.TCP (
   accept,
   acceptFork,
   -- ** Quick one-time servers
-  serverP,
-  serverC,
+  serverReader,
+  serverWriter,
   serverS,
   serverB,
   -- * Client side
@@ -32,9 +32,9 @@ module Control.Proxy.Safe.Network.TCP (
   clientB,
   -- * Socket proxies
   -- $socket-proxies
-  socketP,
-  nsocketP,
-  socketC,
+  socketReader,
+  nsocketReader,
+  socketWriter,
   socketS,
   nsocketS,
   socketB,
@@ -94,7 +94,7 @@ withClient morph host port =
 --------------------------------------------------------------------------------
 
 -- | Connect to a TCP server and send downstream the bytes received from the
--- remote end, by means of 'socketP'.
+-- remote end, by means of 'socketReader'.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -112,11 +112,11 @@ clientP
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 clientP nbytes host port () = do
    withClient id host port $ \(csock,_) -> do
-     socketP nbytes csock ()
+     socketReader nbytes csock ()
 
 
 -- | Connect to a TCP server and send to the remote end the bytes received from
--- upstream, by means of 'socketC'.
+-- upstream, by means of 'socketWriter'.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -132,7 +132,7 @@ clientC
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
 clientC hp port () = do
    withClient id hp port $ \(csock,_) ->
-     socketC csock ()
+     socketWriter csock ()
 
 
 -- | Connect to a TCP server and send to the remote end any bytes received
@@ -257,7 +257,7 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 --------------------------------------------------------------------------------
 
 -- | Bind a listening socket, accept a single connection and send downstream
--- any bytes received from the remote end, by means of 'socketP'.
+-- any bytes received from the remote end, by means of 'socketReader'.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -269,21 +269,21 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- Using this proxy you can write straightforward code like the following, which
 -- prints whatever is received from a single TCP connection to port 9000:
 --
--- > let session = serverP 4096 "127.0.0.1" "9000" >-> tryK printD
+-- > let session = serverReader 4096 "127.0.0.1" "9000" >-> tryK printD
 -- > runSafeIO . runProxy . runEitherK $ session
-serverP
+serverReader
   :: P.Proxy p
   => Int                         -- ^Maximum number of bytes to receive at once.
   -> HostPreference              -- ^Preferred host to bind to.
   -> NS.ServiceName              -- ^Service name (port) to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serverP nbytes hp port () = do
+serverReader nbytes hp port () = do
    withServerAccept id hp port $ \(csock,_) -> do
-     socketP nbytes csock ()
+     socketReader nbytes csock ()
 
 
 -- | Bind a listening socket, accept a single connection and send to the
--- remote end any bytes received from upstream, by means of 'socketC'.
+-- remote end any bytes received from upstream, by means of 'socketWriter'.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -291,16 +291,16 @@ serverP nbytes hp port () = do
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client connecting to port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> serverC "127.0.0.1" "9000"
+-- > let session = fromListS ["He","llo\r\n"] >-> serverWriter "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
-serverC
+serverWriter
   :: P.Proxy p
   => HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serverC hp port () = do
+serverWriter hp port () = do
    withServerAccept id hp port $ \(csock,_) -> do
-     socketC csock ()
+     socketWriter csock ()
 
 
 -- | Bind a listening socket, accept a single connection and send to the remote
@@ -363,34 +363,34 @@ serverB nbytes hp port b' = do
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-socketP
+socketReader
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-socketP nbytes sock () = loop where
+socketReader nbytes sock () = loop where
     loop = do bs <- P.tryIO $ recv sock nbytes
               unless (B.null bs) $ P.respond bs >> loop
 
--- | Socket 'P.Server' proxy similar to 'socketP', except it gets the
+-- | Socket 'P.Server' proxy similar to 'socketReader', except it gets the
 -- maximum number of bytes to receive from downstream.
-nsocketP
+nsocketReader
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> Int
   -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
-nsocketP sock = loop where
+nsocketReader sock = loop where
     loop nbytes = do bs <- P.tryIO $ recv sock nbytes
                      unless (B.null bs) $ P.respond bs >>= loop
 
 
 -- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
 -- from upstream.
-socketC
+socketWriter
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO r
-socketC sock = P.foreverK $ loop where
+socketWriter sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
 
 

@@ -25,9 +25,9 @@ module Control.Proxy.Network.TCP (
   withClient,
   -- * Socket proxies
   -- $socket-proxies
-  socketP,
-  nsocketP,
-  socketC,
+  socketReader,
+  nsocketReader,
+  socketWriter,
   socketS,
   nsocketS,
   socketB,
@@ -170,23 +170,23 @@ acceptFork lsock f = do
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-socketP
+socketReader
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer p B.ByteString IO ()
-socketP nbytes sock () = P.runIdentityP loop where
+socketReader nbytes sock () = P.runIdentityP loop where
     loop = do bs <- lift $ recv sock nbytes
               unless (B.null bs) $ P.respond bs >> loop
 
--- | Socket 'P.Server' proxy similar to 'socketP', except it gets the
+-- | Socket 'P.Server' proxy similar to 'socketReader', except it gets the
 -- maximum number of bytes to receive from downstream.
-nsocketP
+nsocketReader
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> Int
   -> P.Server p Int B.ByteString IO ()
-nsocketP sock = P.runIdentityK loop where
+nsocketReader sock = P.runIdentityK loop where
     loop nbytes = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
@@ -194,11 +194,11 @@ nsocketP sock = P.runIdentityK loop where
 
 -- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
 -- from upstream.
-socketC
+socketWriter
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> () -> P.Consumer p B.ByteString IO r
-socketC sock = P.runIdentityK . P.foreverK $ loop where
+socketWriter sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 
 
