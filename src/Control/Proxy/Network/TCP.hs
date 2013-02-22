@@ -1,4 +1,3 @@
-{-# LANGUAGE Rank2Types #-}
 {-# OPTIONS_HADDOCK prune #-}
 
 -- | This module exports functions that allow you safely use 'NS.Socket'
