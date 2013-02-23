@@ -15,9 +15,9 @@
 module Control.Proxy.Network.TCP (
   -- * Server side
   -- $server-side
-  withServer,
-  withServerAccept,
-  withServerAcceptFork,
+  runServer,
+  runServerAccept,
+  runServerAcceptFork,
   accept,
   acceptFork,
   -- * Client side
@@ -92,14 +92,14 @@ withClient host port =
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
 -- 'close' instead.
-withServer
+runServer
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> IO r
-withServer hp port =
+runServer hp port =
     E.bracket bind close'
   where
     bind = listen hp port
@@ -110,15 +110,15 @@ withServer hp port =
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
-withServerAccept
+runServerAccept
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> IO r
-withServerAccept hp port k = do
-    withServer hp port $ \(lsock,_) -> do
+runServerAccept hp port k = do
+    runServer hp port $ \(lsock,_) -> do
       accept lsock k
 
 
@@ -127,7 +127,7 @@ withServerAccept hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
-withServerAcceptFork
+runServerAcceptFork
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
@@ -136,8 +136,8 @@ withServerAcceptFork
                                    -- accepted. Takes the connection socket
                                    -- and remote end address.
   -> IO ()
-withServerAcceptFork hp port k = do
-    withServer hp port $ \(lsock,_) -> do
+runServerAcceptFork hp port k = do
+    runServer hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
 
@@ -247,7 +247,7 @@ connect host port = do
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
--- Prefer to use 'withServer' if you will be using the socket within a limited
+-- Prefer to use 'runServer' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
 -- of exceptions.
 --
