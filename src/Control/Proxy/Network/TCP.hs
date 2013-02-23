@@ -28,10 +28,6 @@ module Control.Proxy.Network.TCP (
   socketReader,
   nsocketReader,
   socketWriter,
-  socketS,
-  nsocketS,
-  socketB,
-  nsocketB,
   -- * Low level support
   listen,
   connect,
@@ -41,16 +37,16 @@ module Control.Proxy.Network.TCP (
   ) where
 
 
-import           Control.Concurrent (ThreadId, forkIO)
-import qualified Control.Exception as E
+import           Control.Concurrent            (ThreadId, forkIO)
+import qualified Control.Exception             as E
 import           Control.Monad
 import           Control.Monad.Trans.Class
-import qualified Control.Proxy as P
+import qualified Control.Proxy                 as P
 import           Control.Proxy.Network.Util
-import qualified Data.ByteString as B
-import           Data.List (partition)
-import qualified Network.Socket as NS
-import           Network.Socket.ByteString (recv, sendAll)
+import qualified Data.ByteString               as B
+import           Data.List                     (partition)
+import qualified Network.Socket                as NS
+import           Network.Socket.ByteString     (recv, sendAll)
 
 
 --------------------------------------------------------------------------------
@@ -221,81 +217,6 @@ socketWriter sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 
 
--- | Socket 'P.Server' proxy. Sends to the remote end any bytes received from
--- downstream, then sends downstream any bytes received from the remote end.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
-socketS
-  :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive at once.
-  -> NS.Socket          -- ^Connected socket.
-  -> Maybe B.ByteString
-  -> P.Server p (Maybe B.ByteString) B.ByteString IO ()
-socketS nbytes sock = P.runIdentityK loop where
-    loop Nothing   = recv'
-    loop (Just b') = send' b' >> recv'
-    send' = lift . sendAll sock
-    recv' = do bs <- lift $ recv sock nbytes
-               unless (B.null bs) $ P.respond bs >>= loop
-
-
--- | Socket 'P.Server' proxy similar to 'socketS', except it gets the
--- maximum number of bytes to receive from downstream.
-nsocketS
-  :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
-  -> (Int, Maybe B.ByteString)
-  -> P.Server p (Int, Maybe B.ByteString) B.ByteString IO ()
-nsocketS sock = P.runIdentityK loop where
-    loop (n, Nothing) = recv' n
-    loop (n, Just b') = send' b' >> recv' n
-    send' = lift . sendAll sock
-    recv' nbytes = do
-      bs <- lift $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >>= loop
-
-
--- | Socket 'P.Proxy' with open downstream and upstream interfaces that sends
--- and receives bytes to a remote end.
---
--- This proxy forwards upstream request from downstream, and expectes in
--- exchange optional bytes to send to the remote end. If no bytes are provided,
--- then skip sending anything to the remote end, otherwise do. Then receive
--- bytes from the remote end and send them downstream.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
-socketB
-  :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive at once.
-  -> NS.Socket          -- ^Connected socket.
-  -> Maybe a'
-  -> p a' B.ByteString (Maybe a') B.ByteString IO ()
-socketB nbytes sock = P.runIdentityK loop where
-    loop Nothing   = recv'
-    loop (Just a') = P.request a' >>= send' >> recv'
-    send' = lift . sendAll sock
-    recv' = do bs <- lift $ recv sock nbytes
-               unless (B.null bs) $ P.respond bs >>= loop
-
-
--- | Socket 'P.Proxy' similar to 'socketB', except it gets the- maximum number
--- of bytes to receive from downstream.
-nsocketB
-  :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
-  -> (Int, Maybe a')
-  -> p a' B.ByteString (Int, Maybe a') B.ByteString IO ()
-nsocketB sock = P.runIdentityK loop where
-    loop (n, Nothing) = recv' n
-    loop (n, Just a') = P.request a' >>= send' >> recv' n
-    send' = lift . sendAll sock
-    recv' nbytes = do
-      bs <- lift $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >>= loop
 
 --------------------------------------------------------------------------------
 

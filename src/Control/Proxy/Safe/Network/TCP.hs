@@ -1,5 +1,4 @@
 {-# LANGUAGE Rank2Types #-}
-{-# OPTIONS_HADDOCK prune #-}
 
 -- | This module exports functions that allow you safely use 'NS.Socket'
 -- resources acquired and release within a 'P.Proxy' pipeline, using the
@@ -21,25 +20,17 @@ module Control.Proxy.Safe.Network.TCP (
   -- ** Quick one-time servers
   serverReader,
   serverWriter,
-  serverS,
-  serverB,
   -- * Client side
   -- $client-side
   withClient,
   -- ** Quick one-time clients
-  clientP,
-  clientC,
-  clientS,
-  clientB,
+  clientReader,
+  clientWriter,
   -- * Socket proxies
   -- $socket-proxies
   socketReader,
   nsocketReader,
   socketWriter,
-  socketS,
-  nsocketS,
-  socketB,
-  nsocketB,
   -- * Low level support
   -- $low-level
   listen,
@@ -105,13 +96,13 @@ withClient morph host port =
 --
 -- > let session = clientP "127.0.0.1" "9000" >-> tryK printD
 -- > runSafeIO . runProxy . runEitherK $ session
-clientP
+clientReader
   :: P.Proxy p
   => Int                         -- ^Maximum number of bytes to receive at once.
   -> NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-clientP nbytes host port () = do
+clientReader nbytes host port () = do
    withClient id host port $ \(csock,_) -> do
      socketReader nbytes csock ()
 
@@ -126,51 +117,14 @@ clientP nbytes host port () = do
 --
 -- > let session = fromListS ["He","llo\r\n"] >-> clientC "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
-clientC
+clientWriter
   :: P.Proxy p
   => NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
-clientC hp port () = do
+clientWriter hp port () = do
    withClient id hp port $ \(csock,_) ->
      socketWriter csock ()
-
-
--- | Connect to a TCP server and send to the remote end any bytes received
--- from downstream, then send downstream the bytes received from the remote
--- end, by means of 'socketS'.
---
--- Both the listening and connection sockets are closed when done or in case of
--- exceptions.
-clientS
-  :: P.Proxy p
-  => Int                         -- ^Maximum number of bytes to receive at once.
-  -> NS.HostName                 -- ^Server host name.
-  -> NS.ServiceName              -- ^Server service name (port).
-  -> Maybe B.ByteString
-  -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
-clientS nbytes host port b' = do
-   withClient id host port $ \(csock,_) -> do
-     socketS nbytes csock b'
-
--- | Connect to a TCP server and use the connection with 'socketB', which
--- forwards upstream request from downstream, and expectes in exchange optional
--- bytes to send to the remote end. If no bytes are provided, then skip sending
--- anything to the remote end, otherwise do. Then receive bytes from the remote
--- end and send them downstream.
---
--- The connection socket is are closed when done or in case of exceptions.
-clientB
-  :: P.Proxy p
-  => Int                         -- ^Maximum number of bytes to receive at once.
-  -> NS.HostName                 -- ^Server host name.
-  -> NS.ServiceName              -- ^Server service name (port).
-  -> Maybe a'
-  -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
-clientB nbytes host port b' = do
-   withClient id host port $ \(csock,_) -> do
-     socketB nbytes csock b'
-
 
 --------------------------------------------------------------------------------
 
@@ -323,53 +277,6 @@ serverWriter hp port () = do
    withServerAccept id hp port $ \(csock,_) -> do
      socketWriter csock ()
 
-
--- | Bind a listening socket, accept a single connection and send to the remote
--- end any bytes received from downstream, then send downstream any bytes
--- received from the remote end, by means of 'socketS'.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
---
--- Both the listening and connection socket are closed when done or in case of
--- exceptions.
-serverS
-  :: P.Proxy p
-  => Int                         -- ^Maximum number of bytes to receive at once.
-  -> HostPreference              -- ^Preferred host to bind to.
-  -> NS.ServiceName              -- ^Service name (port) to bind to.
-  -> Maybe B.ByteString
-  -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
-serverS nbytes hp port b' = do
-   withServerAccept id hp port $ \(csock,_) -> do
-     socketS nbytes csock b'
-
-
--- | Bind a listening socket, accept a single connection and use it with
--- 'socketB', which forwards upstream request from downstream, and expectes in
--- exchange optional bytes to send to the remote end. If no bytes are provided,
--- then skip sending anything to the remote end, otherwise do. Then receive
--- bytes from the remote end and send them downstream.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
---
--- Both the listening and connection socket are closed when done or in case of
--- exceptions.
-serverB
-  :: P.Proxy p
-  => Int                         -- ^Maximum number of bytes to receive at once.
-  -> HostPreference              -- ^Preferred host to bind to.
-  -> NS.ServiceName              -- ^Service name (port) to bind to.
-  -> Maybe a'
-  -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
-serverB nbytes hp port b' = do
-   withServerAccept id hp port $ \(csock,_) -> do
-     socketB nbytes csock b'
-
-
 --------------------------------------------------------------------------------
 
 -- $socket-proxies
@@ -404,7 +311,6 @@ nsocketReader sock = loop where
     loop nbytes = do bs <- P.tryIO $ recv sock nbytes
                      unless (B.null bs) $ P.respond bs >>= loop
 
-
 -- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
 -- from upstream.
 socketWriter
@@ -413,84 +319,6 @@ socketWriter
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO r
 socketWriter sock = P.foreverK $ loop where
     loop = P.request >=> P.tryIO . sendAll sock
-
-
--- | Socket 'P.Server' proxy. Sends to the remote end any bytes received from
--- downstream, then sends downstream any bytes received from the remote end.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
-socketS
-  :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive at once.
-  -> NS.Socket          -- ^Connected socket.
-  -> Maybe B.ByteString
-  -> P.Server (P.ExceptionP p) (Maybe B.ByteString) B.ByteString P.SafeIO ()
-socketS nbytes sock = loop where
-    loop Nothing   = recv'
-    loop (Just b') = send' b' >> recv'
-    send' = P.tryIO . sendAll sock
-    recv' = do bs <- P.tryIO $ recv sock nbytes
-               unless (B.null bs) $ P.respond bs >>= loop
-
-
--- | Socket 'P.Server' proxy similar to 'socketS', except it gets the
--- maximum number of bytes to receive from downstream.
-nsocketS
-  :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
-  -> (Int, Maybe B.ByteString)
-  -> P.Server (P.ExceptionP p) (Int, Maybe B.ByteString) B.ByteString P.SafeIO ()
-nsocketS sock = loop where
-    loop (n, Nothing) = recv' n
-    loop (n, Just b') = send' b' >> recv' n
-    send' = P.tryIO . sendAll sock
-    recv' nbytes = do
-      bs <- P.tryIO $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >>= loop
-
-
--- | Socket 'P.Proxy' with open downstream and upstream interfaces that sends and
--- receives bytes to a remote end.
---
--- This proxy forwards upstream request from downstream, and expectes in
--- exchange optional bytes to send to the remote end. If no bytes are provided,
--- then skip sending anything to the remote end, otherwise do. Then receive
--- bytes from the remote end and send them downstream.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
-socketB
-  :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive at once.
-  -> NS.Socket          -- ^Connected socket.
-  -> Maybe a'
-  -> (P.ExceptionP p) a' B.ByteString (Maybe a') B.ByteString P.SafeIO ()
-socketB nbytes sock = loop where
-    loop Nothing   = recv'
-    loop (Just a') = P.request a' >>= send' >> recv'
-    send' = P.tryIO . sendAll sock
-    recv' = do bs <- P.tryIO $ recv sock nbytes
-               unless (B.null bs) $ P.respond bs >>= loop
-
-
--- | Socket 'P.Proxy' similar to 'socketB', except it gets the maximum number of
--- bytes to receive from downstream.
-nsocketB
-  :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
-  -> (Int, Maybe a')
-  -> (P.ExceptionP p) a' B.ByteString (Int, Maybe a') B.ByteString P.SafeIO ()
-nsocketB sock = loop where
-    loop (n, Nothing) = recv' n
-    loop (n, Just a') = P.request a' >>= send' >> recv' n
-    send' = P.tryIO . sendAll sock
-    recv' nbytes = do
-      bs <- P.tryIO $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >>= loop
-
 
 --------------------------------------------------------------------------------
 
