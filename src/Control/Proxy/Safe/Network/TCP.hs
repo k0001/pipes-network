@@ -110,6 +110,8 @@ readFromServer nbytes host port () = do
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream and then forwards such bytes downstream.
 --
+-- Requests from downstream are forwarded upstream.
+--
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- Using this proxy you can write straightforward code like the following, which
@@ -121,10 +123,10 @@ writeToServer
   :: P.Proxy p
   => NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
-  -> () -> P.Pipe (P.ExceptionP p) B.ByteString B.ByteString P.SafeIO ()
-writeToServer hp port () = do
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
+writeToServer hp port x = do
    withConnect id hp port $ \(csock,_) ->
-     socketWriter csock ()
+     socketWriter csock x
 
 --------------------------------------------------------------------------------
 
@@ -260,6 +262,8 @@ readFromClient nbytes hp port () = do
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream and then forwards such bytes downstream.
 --
+-- Requests from downstream are forwarded upstream.
+--
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
 --
@@ -272,10 +276,10 @@ writeToClient
   :: P.Proxy p
   => HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
-  -> () -> P.Pipe (P.ExceptionP p) B.ByteString B.ByteString P.SafeIO ()
-writeToClient hp port () = do
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
+writeToClient hp port x = do
    withListenAccept id hp port $ \(csock,_) -> do
-     socketWriter csock ()
+     socketWriter csock x
 
 --------------------------------------------------------------------------------
 
@@ -319,13 +323,15 @@ nsocketReader sock = loop where
 
 -- | Sends to the remote end the bytes received from upstream and then forwards
 -- such same bytes downstream.
+--
+-- Requests from downstream are forwarded upstream.
 socketWriter
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> () -> P.Pipe (P.ExceptionP p) B.ByteString B.ByteString P.SafeIO r
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
 socketWriter sock = P.foreverK $ loop where
-    loop () = do
-      a <- P.request ()
+    loop x = do
+      a <- P.request x
       P.tryIO $ sendAll sock a
       P.respond a >>= loop
 

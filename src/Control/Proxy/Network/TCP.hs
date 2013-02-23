@@ -214,14 +214,17 @@ nsocketReader sock = P.runIdentityK loop where
 
 -- | Sends to the remote end the bytes received from upstream and then forwards
 -- such same bytes downstream.
+--
+-- Requests from downstream are forwarded upstream.
 socketWriter
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> () -> P.Pipe p B.ByteString B.ByteString IO r
+  -> x -> p x B.ByteString x B.ByteString IO r
 socketWriter sock = P.runIdentityK . P.foreverK $ loop where
-    loop = P.request >=> lift . sendAll sock
-
-
+    loop x = do
+      a <- P.request x
+      lift $ sendAll sock a
+      P.respond a
 
 --------------------------------------------------------------------------------
 
