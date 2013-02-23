@@ -1,6 +1,5 @@
--- | This module exports 'P.Proxy's that allow simple synchronous
--- communication with a remote end. These proxies use a specific protocol
--- on their downstream interface.
+-- | This module exports 'P.Proxy's that allow synchronous communication with
+-- a remote end using a simple RPC-like interface on their downstream end.
 --
 -- As opposed to the similar proxies found in "Control.Proxy.Network.TCP.Sync",
 -- these use the exception handling facilities provided by 'P.ExceptionP'.
