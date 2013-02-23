@@ -12,9 +12,9 @@
 module Control.Proxy.Safe.Network.TCP (
   -- * Server side
   -- $server-side
-  runServer,
-  runServerAccept,
-  runServerAcceptFork,
+  withListen,
+  withListenAccept,
+  withListenAcceptFork,
   accept,
   acceptFork,
   -- ** Quick one-time servers
@@ -22,7 +22,7 @@ module Control.Proxy.Safe.Network.TCP (
   writeToClient,
   -- * Client side
   -- $client-side
-  withClient,
+  withConnect,
   -- ** Quick one-time clients
   readFromServer,
   writeToServer,
@@ -66,7 +66,7 @@ import           Network.Socket.ByteString                 (sendAll, recv)
 --
 -- If you would like to close the socket yourself, then use the 'connect' and
 -- 'close' instead.
-withClient
+withConnect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.HostName                   -- ^Server hostname.
@@ -76,7 +76,7 @@ withClient
                                    --  communication socket and the server
                                    --  address.
   -> P.ExceptionP p a' a b' b m r
-withClient morph host port =
+withConnect morph host port =
     P.bracket morph connect' close'
   where
     connect' = T.connect host port
@@ -103,7 +103,7 @@ readFromServer
   -> NS.ServiceName              -- ^Server service name (port).
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 readFromServer nbytes host port () = do
-   withClient id host port $ \(csock,_) -> do
+   withConnect id host port $ \(csock,_) -> do
      socketReader nbytes csock ()
 
 
@@ -123,7 +123,7 @@ writeToServer
   -> NS.ServiceName              -- ^Server service name (port).
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
 writeToServer hp port () = do
-   withClient id hp port $ \(csock,_) ->
+   withConnect id hp port $ \(csock,_) ->
      socketWriter csock ()
 
 --------------------------------------------------------------------------------
@@ -139,7 +139,7 @@ writeToServer hp port () = do
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
 -- 'close' instead.
-runServer
+withListen
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
@@ -148,7 +148,7 @@ runServer
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
-runServer morph hp port =
+withListen morph hp port =
     P.bracket morph bind close'
   where
     bind = T.listen hp port
@@ -159,7 +159,7 @@ runServer morph hp port =
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
-runServerAccept
+withListenAccept
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
@@ -169,8 +169,8 @@ runServerAccept
                                    --  connection is accepted. Takes the
                                    --  connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
-runServerAccept morph hp port k = do
-   runServer morph hp port $ \(lsock,_) -> do
+withListenAccept morph hp port k = do
+   withListen morph hp port $ \(lsock,_) -> do
      accept morph lsock k
 
 
@@ -179,7 +179,7 @@ runServerAccept morph hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
-runServerAcceptFork
+withListenAcceptFork
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
@@ -189,8 +189,8 @@ runServerAcceptFork
                                    --  connection is accepted. Takes the
                                    --  connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
-runServerAcceptFork morph hp port k = do
-   runServer morph hp port $ \(lsock,_) -> do
+withListenAcceptFork morph hp port k = do
+   withListen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
 
 
@@ -253,7 +253,7 @@ readFromClient
   -> NS.ServiceName              -- ^Service name (port) to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 readFromClient nbytes hp port () = do
-   runServerAccept id hp port $ \(csock,_) -> do
+   withListenAccept id hp port $ \(csock,_) -> do
      socketReader nbytes csock ()
 
 
@@ -274,7 +274,7 @@ writeToClient
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
 writeToClient hp port () = do
-   runServerAccept id hp port $ \(csock,_) -> do
+   withListenAccept id hp port $ \(csock,_) -> do
      socketWriter csock ()
 
 --------------------------------------------------------------------------------
@@ -336,7 +336,7 @@ socketWriter sock = P.foreverK $ loop where
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
--- Prefer to use 'withClient' if you will be using the socket within a limited
+-- Prefer to use 'withConnect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
 -- of exceptions.
 --
@@ -355,7 +355,7 @@ connect host port = P.tryIO $ T.connect host port
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
--- Prefer to use 'runServer' if you will be using the socket within a limited
+-- Prefer to use 'withListen' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
 -- of exceptions.
 --

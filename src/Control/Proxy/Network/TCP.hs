@@ -15,14 +15,14 @@
 module Control.Proxy.Network.TCP (
   -- * Server side
   -- $server-side
-  runServer,
-  runServerAccept,
-  runServerAcceptFork,
+  withListen,
+  withListenAccept,
+  withListenAcceptFork,
   accept,
   acceptFork,
   -- * Client side
   -- $client-side
-  withClient,
+  withConnect,
   -- * Socket proxies
   -- $socket-proxies
   socketReader,
@@ -63,7 +63,7 @@ import           Network.Socket.ByteString     (recv, sendAll)
 --
 -- If you would like to close the socket yourself, then use the 'connect' and
 -- 'close' instead.
-withClient
+withConnect
   :: NS.HostName                   -- ^Server hostname.
   -> NS.ServiceName                -- ^Server service name (port).
   -> ((NS.Socket, NS.SockAddr) -> IO r)
@@ -71,7 +71,7 @@ withClient
                                    --  communication socket and the server
                                    --  address.
   -> IO r
-withClient host port =
+withConnect host port =
     E.bracket connect' close'
   where
     connect' = connect host port
@@ -92,14 +92,14 @@ withClient host port =
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
 -- 'close' instead.
-runServer
+withListen
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> IO r
-runServer hp port =
+withListen hp port =
     E.bracket bind close'
   where
     bind = listen hp port
@@ -110,15 +110,15 @@ runServer hp port =
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
-runServerAccept
+withListenAccept
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> IO r
-runServerAccept hp port k = do
-    runServer hp port $ \(lsock,_) -> do
+withListenAccept hp port k = do
+    withListen hp port $ \(lsock,_) -> do
       accept lsock k
 
 
@@ -127,7 +127,7 @@ runServerAccept hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
-runServerAcceptFork
+withListenAcceptFork
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
@@ -136,8 +136,8 @@ runServerAcceptFork
                                    -- accepted. Takes the connection socket
                                    -- and remote end address.
   -> IO ()
-runServerAcceptFork hp port k = do
-    runServer hp port $ \(lsock,_) -> do
+withListenAcceptFork hp port k = do
+    withListen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
 
@@ -226,7 +226,7 @@ socketWriter sock = P.runIdentityK . P.foreverK $ loop where
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
--- Prefer to use 'withClient' if you will be using the socket within a limited
+-- Prefer to use 'withConnect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
 -- of exceptions.
 connect :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
@@ -248,7 +248,7 @@ connect host port = do
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
--- Prefer to use 'runServer' if you will be using the socket within a limited
+-- Prefer to use 'withListen' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
 -- of exceptions.
 --
