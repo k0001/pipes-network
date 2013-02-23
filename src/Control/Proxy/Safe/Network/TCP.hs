@@ -297,8 +297,9 @@ socketReader
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 socketReader nbytes sock () = loop where
-    loop = do bs <- P.tryIO $ recv sock nbytes
-              unless (B.null bs) $ P.respond bs >> loop
+    loop = do
+      bs <- P.tryIO $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >> loop
 
 -- | Socket 'P.Server' proxy similar to 'socketReader', except it gets the
 -- maximum number of bytes to receive from downstream.
@@ -308,8 +309,9 @@ nsocketReader
   -> Int
   -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
 nsocketReader sock = loop where
-    loop nbytes = do bs <- P.tryIO $ recv sock nbytes
-                     unless (B.null bs) $ P.respond bs >>= loop
+    loop nbytes = do
+      bs <- P.tryIO $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >>= loop
 
 -- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
 -- from upstream.

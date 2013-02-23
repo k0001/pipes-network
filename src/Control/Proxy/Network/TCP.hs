@@ -191,8 +191,9 @@ socketReader
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer p B.ByteString IO ()
 socketReader nbytes sock () = P.runIdentityP loop where
-    loop = do bs <- lift $ recv sock nbytes
-              unless (B.null bs) $ P.respond bs >> loop
+    loop = do
+      bs <- lift $ recv sock nbytes
+      unless (B.null bs) $ P.respond bs >> loop
 
 -- | Socket 'P.Server' proxy similar to 'socketReader', except it gets the
 -- maximum number of bytes to receive from downstream.
