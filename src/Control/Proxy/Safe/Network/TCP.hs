@@ -107,8 +107,8 @@ readFromServer nbytes host port () = do
      socketReader nbytes csock ()
 
 
--- | Connect to a TCP server and send to the remote end the bytes received from
--- upstream, by means of 'socketWriter'.
+-- | Connects to a TCP server, sends to the remote end the bytes received from
+-- upstream and then forwards such bytes downstream.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -121,7 +121,7 @@ writeToServer
   :: P.Proxy p
   => NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
-  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
+  -> () -> P.Pipe (P.ExceptionP p) B.ByteString B.ByteString P.SafeIO ()
 writeToServer hp port () = do
    withConnect id hp port $ \(csock,_) ->
      socketWriter csock ()
@@ -257,8 +257,8 @@ readFromClient nbytes hp port () = do
      socketReader nbytes csock ()
 
 
--- | Bind a listening socket, accept a single connection and send to the
--- remote end any bytes received from upstream, by means of 'socketWriter'.
+-- | Binds a listening socket, accepts a single connection, sends to the remote
+-- end the bytes received from upstream and then forwards such bytes downstream.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -272,7 +272,7 @@ writeToClient
   :: P.Proxy p
   => HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
-  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
+  -> () -> P.Pipe (P.ExceptionP p) B.ByteString B.ByteString P.SafeIO ()
 writeToClient hp port () = do
    withListenAccept id hp port $ \(csock,_) -> do
      socketWriter csock ()
@@ -317,14 +317,17 @@ nsocketReader sock = loop where
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
 
--- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
--- from upstream.
+-- | Sends to the remote end the bytes received from upstream and then forwards
+-- such same bytes downstream.
 socketWriter
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO r
+  -> () -> P.Pipe (P.ExceptionP p) B.ByteString B.ByteString P.SafeIO r
 socketWriter sock = P.foreverK $ loop where
-    loop = P.request >=> P.tryIO . sendAll sock
+    loop () = do
+      a <- P.request ()
+      P.tryIO $ sendAll sock a
+      P.respond a >>= loop
 
 --------------------------------------------------------------------------------
 

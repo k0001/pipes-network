@@ -212,12 +212,12 @@ nsocketReader sock = P.runIdentityK loop where
       unless (B.null bs) $ P.respond bs >>= loop
 
 
--- | Socket 'P.Consumer' proxy. Sends to the remote end the bytes received
--- from upstream.
+-- | Sends to the remote end the bytes received from upstream and then forwards
+-- such same bytes downstream.
 socketWriter
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> () -> P.Consumer p B.ByteString IO r
+  -> () -> P.Pipe p B.ByteString B.ByteString IO r
 socketWriter sock = P.runIdentityK . P.foreverK $ loop where
     loop = P.request >=> lift . sendAll sock
 
