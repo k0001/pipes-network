@@ -1,15 +1,19 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 -- Some code in this file was adapted from the @network-conduit@ library by
 -- Michael Snoyman. Copyright (c) 2011. See its licensing terms (BSD3) at:
 --   https://github.com/snoyberg/conduit/blob/master/network-conduit/LICENSE
 
 module Control.Proxy.Network.Util (
   HostPreference(..),
-  hpHostName
+  hpHostName,
+  Timeout(..)
   ) where
 
-import qualified Network.Socket as NS
-import           Data.String (IsString (fromString))
-
+import qualified Control.Exception             as E
+import           Data.String                   (IsString (fromString))
+import           Data.Typeable                 (Typeable)
+import qualified Network.Socket as             NS
 
 -- | Which host to bind to.
 data HostPreference
@@ -40,3 +44,8 @@ instance IsString HostPreference where
 hpHostName:: HostPreference -> Maybe NS.HostName
 hpHostName (Host s) = Just s
 hpHostName _        = Nothing
+
+
+-- | Exception thrown when a timeout has elapsed.
+data Timeout = Timeout deriving (Eq, Show, Typeable)
+instance E.Exception Timeout where
