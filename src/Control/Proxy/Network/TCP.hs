@@ -15,9 +15,9 @@
 module Control.Proxy.Network.TCP (
   -- * Server side
   -- $server-side
+  withForkingServer,
+  withServer,
   withListen,
-  withListenAccept,
-  withListenAcceptFork,
   accept,
   acceptFork,
   -- * Client side
@@ -25,9 +25,9 @@ module Control.Proxy.Network.TCP (
   withConnect,
   -- * Socket proxies
   -- $socket-proxies
-  socketReader,
-  nsocketReader,
-  socketWriter,
+  socketReaderS,
+  nsocketReaderS,
+  socketWriterD,
   -- * Low level support
   listen,
   connect,
@@ -110,14 +110,14 @@ withListen hp port =
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
-withListenAccept
+withServer
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                                    -- ^Guarded computation taking the listening
                                    --  socket and the address it's bound to.
   -> IO r
-withListenAccept hp port k = do
+withServer hp port k = do
     withListen hp port $ \(lsock,_) -> do
       accept lsock k
 
@@ -127,7 +127,7 @@ withListenAccept hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
-withListenAcceptFork
+withForkingServer
   :: HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
@@ -136,7 +136,7 @@ withListenAcceptFork
                                    -- accepted. Takes the connection socket
                                    -- and remote end address.
   -> IO ()
-withListenAcceptFork hp port k = do
+withForkingServer hp port k = do
     withListen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
@@ -185,28 +185,28 @@ acceptFork lsock f = do
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-socketReader
+socketReaderS
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer p B.ByteString IO ()
-socketReader nbytes sock () = P.runIdentityP loop where
+socketReaderS nbytes sock () = P.runIdentityP loop where
     loop = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
 
--- | Socket 'P.Server' proxy similar to 'socketReader', except each request from
+-- | Socket 'P.Server' proxy similar to 'socketReaderS', except each request from
 -- downstream specifies the maximum number of bytes to receive.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-nsocketReader
+nsocketReaderS
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> Int
   -> P.Server p Int B.ByteString IO ()
-nsocketReader sock = P.runIdentityK loop where
+nsocketReaderS sock = P.runIdentityK loop where
     loop nbytes = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
@@ -216,11 +216,11 @@ nsocketReader sock = P.runIdentityK loop where
 -- such same bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
-socketWriter
+socketWriterD
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> x -> p x B.ByteString x B.ByteString IO r
-socketWriter sock = P.runIdentityK . P.foreverK $ loop where
+socketWriterD sock = P.runIdentityK . P.foreverK $ loop where
     loop x = do
       a <- P.request x
       lift $ sendAll sock a
