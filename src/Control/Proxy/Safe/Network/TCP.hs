@@ -18,14 +18,14 @@ module Control.Proxy.Safe.Network.TCP (
   accept,
   acceptFork,
   -- ** Quick one-time servers
-  serverReader,
-  serverWriter,
+  readFromClient,
+  writeToClient,
   -- * Client side
   -- $client-side
   withClient,
   -- ** Quick one-time clients
-  clientReader,
-  clientWriter,
+  readFromServer,
+  writeToServer,
   -- * Socket proxies
   -- $socket-proxies
   socketReader,
@@ -96,13 +96,13 @@ withClient morph host port =
 --
 -- > let session = clientP "127.0.0.1" "9000" >-> tryK printD
 -- > runSafeIO . runProxy . runEitherK $ session
-clientReader
+readFromServer
   :: P.Proxy p
   => Int                         -- ^Maximum number of bytes to receive at once.
   -> NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-clientReader nbytes host port () = do
+readFromServer nbytes host port () = do
    withClient id host port $ \(csock,_) -> do
      socketReader nbytes csock ()
 
@@ -117,12 +117,12 @@ clientReader nbytes host port () = do
 --
 -- > let session = fromListS ["He","llo\r\n"] >-> clientC "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
-clientWriter
+writeToServer
   :: P.Proxy p
   => NS.HostName                 -- ^Server host name.
   -> NS.ServiceName              -- ^Server service name (port).
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
-clientWriter hp port () = do
+writeToServer hp port () = do
    withClient id hp port $ \(csock,_) ->
      socketWriter csock ()
 
@@ -244,15 +244,15 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- Using this proxy you can write straightforward code like the following, which
 -- prints whatever is received from a single TCP connection to port 9000:
 --
--- > let session = serverReader 4096 "127.0.0.1" "9000" >-> tryK printD
+-- > let session = readFromClient 4096 "127.0.0.1" "9000" >-> tryK printD
 -- > runSafeIO . runProxy . runEitherK $ session
-serverReader
+readFromClient
   :: P.Proxy p
   => Int                         -- ^Maximum number of bytes to receive at once.
   -> HostPreference              -- ^Preferred host to bind to.
   -> NS.ServiceName              -- ^Service name (port) to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serverReader nbytes hp port () = do
+readFromClient nbytes hp port () = do
    withServerAccept id hp port $ \(csock,_) -> do
      socketReader nbytes csock ()
 
@@ -266,14 +266,14 @@ serverReader nbytes hp port () = do
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client connecting to port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> serverWriter "127.0.0.1" "9000"
+-- > let session = fromListS ["He","llo\r\n"] >-> writeToClient "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
-serverWriter
+writeToClient
   :: P.Proxy p
   => HostPreference                -- ^Preferred host to bind to.
   -> NS.ServiceName                -- ^Service name (port) to bind to.
   -> () -> P.Consumer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serverWriter hp port () = do
+writeToClient hp port () = do
    withServerAccept id hp port $ \(csock,_) -> do
      socketWriter csock ()
 
