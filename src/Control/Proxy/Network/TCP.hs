@@ -195,8 +195,12 @@ socketReader nbytes sock () = P.runIdentityP loop where
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
 
--- | Socket 'P.Server' proxy similar to 'socketReader', except it gets the
--- maximum number of bytes to receive from downstream.
+-- | Socket 'P.Server' proxy similar to 'socketReader', except each request from
+-- downstream specifies the maximum number of bytes to receive.
+--
+-- Less than the specified maximum number of bytes might be received at once.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
 nsocketReader
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
