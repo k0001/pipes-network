@@ -141,8 +141,12 @@ connectWriterD mmaxwait hp port x = do
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'T.listen' and
--- 'NS.sClose' functions instead.
+-- If you would like acquire and close the socket yourself, then use the
+-- 'NS.listen' and 'NS.sClose' instead.
+--
+-- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
+-- performance servers. So, we use the maximum between 'N.maxListenQueue' and
+-- 2048 as the default size of the listening queue.
 withListen
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -152,8 +156,11 @@ withListen
                                    -- ^Guarded computation taking the listening
                                    -- socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
-withListen morph hp port =
-    P.bracket morph (T.listen hp port) (NS.sClose . fst)
+withListen morph hp port = P.bracket morph listen (NS.sClose . fst)
+  where
+    listen = do x@(bsock,_) <- T.bind hp port
+                NS.listen bsock $ max 2048 NS.maxListenQueue
+                return x
 
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.

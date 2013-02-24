@@ -33,7 +33,7 @@ module Control.Proxy.Network.TCP (
   nsocketReaderTimeoutS,
   socketWriterTimeoutD,
   -- * Low level support
-  listen,
+  bind,
   connect,
   -- * Exports
   HostPreference(..),
@@ -87,8 +87,12 @@ withConnect host port = E.bracket (connect host port) (NS.sClose . fst)
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'listen' and
--- 'NS.sClose' instead.
+-- If you would like acquire and close the socket yourself, then use the
+-- 'NS.listen' and 'NS.sClose' instead.
+--
+-- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
+-- performance servers. So, we use the maximum between 'N.maxListenQueue' and
+-- 2048 as the default size of the listening queue.
 withListen
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
@@ -96,7 +100,11 @@ withListen
                       -- ^Guarded computation taking the listening socket and
                       -- the address it's bound to.
   -> IO r
-withListen hp port = E.bracket (listen hp port) (NS.sClose . fst)
+withListen hp port = E.bracket listen (NS.sClose . fst)
+  where
+    listen = do x@(bsock,_) <- bind hp port
+                NS.listen bsock $ max 2048 NS.maxListenQueue
+                return x
 
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.
@@ -290,21 +298,12 @@ connect host port = do
     hints = NS.defaultHints { NS.addrFlags = [NS.AI_ADDRCONFIG]
                             , NS.addrSocketType = NS.Stream }
 
--- | Attempt to bind a listening socket on the given host preference and
--- service port.
+-- | Bind a TCP port on the given host.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
 -- it's not needed anymore, otherwise it will remain open.
---
--- Prefer to use 'withListen' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage or in case
--- of exceptions.
---
--- 'N.maxListenQueue' is tipically 128, which is too small for high performance
--- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
--- default size of the listening queue.
-listen :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
-listen hp port = do
+bind :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
+bind hp port = do
     addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just port)
     let addrs' = case hp of
           HostIPv4 -> prioritize isIPv4addr addrs
@@ -325,8 +324,8 @@ listen hp port = do
       NS.setSocketOption sock NS.NoDelay 1
       NS.setSocketOption sock NS.ReuseAddr 1
       NS.bindSocket sock sockAddr
-      NS.listen sock (max 2048 NS.maxListenQueue)
       return (sock, sockAddr)
+
 
 --------------------------------------------------------------------------------
 
