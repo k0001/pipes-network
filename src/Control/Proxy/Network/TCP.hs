@@ -30,9 +30,9 @@ module Control.Proxy.Network.TCP (
   socketWriterD,
   -- ** Timeouts
   -- $socket-proxies-timeout
-  socketTimedReaderS,
-  nsocketTimedReaderS,
-  socketTimedWriterD,
+  socketTimeoutReaderS,
+  nsocketTimeoutReaderS,
+  socketTimeoutWriterD,
   -- * Low level support
   listen,
   connect,
@@ -243,13 +243,13 @@ socketWriterD sock = P.runIdentityK loop where
 -- | Like 'socketReaderS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
 -- more time that the given timeout.
-socketTimedReaderS
+socketTimeoutReaderS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (PE.EitherP Timeout p) B.ByteString IO ()
-socketTimedReaderS maxwait nbytes sock () = loop where
+socketTimeoutReaderS maxwait nbytes sock () = loop where
     loop = do
       mbs <- lift . timeout maxwait $ recv sock nbytes
       case mbs of
@@ -260,12 +260,12 @@ socketTimedReaderS maxwait nbytes sock () = loop where
 -- | Like 'nsocketReaderS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
 -- more time that the given timeout.
-nsocketTimedReaderS
+nsocketTimeoutReaderS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Int -> P.Server (PE.EitherP Timeout p) Int B.ByteString IO ()
-nsocketTimedReaderS maxwait sock = loop where
+nsocketTimeoutReaderS maxwait sock = loop where
     loop nbytes = do
       mbs <- lift . timeout maxwait $ recv sock nbytes
       case mbs of
@@ -276,12 +276,12 @@ nsocketTimedReaderS maxwait sock = loop where
 -- | Like 'socketWriterD', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
 -- more time that the given timeout.
-socketTimedWriterD
+socketTimeoutWriterD
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO r
-socketTimedWriterD maxwait sock = loop where
+socketTimeoutWriterD maxwait sock = loop where
     loop x = do
       a <- P.request x
       mbs <- lift . timeout maxwait $ sendAll sock a
