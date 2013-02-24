@@ -8,9 +8,9 @@
 -- pipeline, then you should use the functions exported by
 -- "Control.Proxy.Network.TCP".
 --
--- The module "Control.Proxy.Safe.Network.TCP.Quick" may offer simpler
--- solutions to one-time streaming problems which might be enough to satisfy
--- your needs.
+-- The module "Control.Proxy.Safe.Network.TCP.Quick" offers simpler
+-- solutions to one-time streaming interactions with a remote end that might
+-- readily satisfy your needs.
 
 module Control.Proxy.Safe.Network.TCP (
   -- * Server side
@@ -59,8 +59,8 @@ import           System.Timeout                (timeout)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'T.connectSock'
--- and 'NS.sClose' functions instead.
+-- If you prefer to acquire close the socket yourself, then use
+-- 'T.connectSock' and the 'NS.sClose' from "Network.Socket" instead.
 connect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -85,8 +85,9 @@ connect morph host port =
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
--- If you would like acquire and close the socket yourself, then use the
--- 'NS.listen' and 'NS.sClose' instead.
+-- If you prefer to acquire and close the socket yourself, then use
+-- 'T.bindSock' and the 'NS.listen' and 'NS.sClose' functions from
+-- "Network.Socket" instead.
 --
 -- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
 -- performance servers. So, we use the maximum between 'N.maxListenQueue' and
@@ -153,7 +154,7 @@ accept
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
-                                   -- ^Computation to run once anincomming
+                                   -- ^Computation to run once an incomming
                                    -- connection is accepted. Takes the
                                    -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
@@ -185,8 +186,7 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
 -- to interact with the other connection end.
 
--- | Socket 'P.Producer' proxy. Receives bytes from the remote end and sends
--- them downstream.
+-- | Receives bytes from the remote end and sends them downstream.
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
@@ -213,12 +213,8 @@ socketS (Just wait) nbytes sock () = loop where
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
--- | Socket 'P.Server' proxy similar to 'socketS', except each request
--- from downstream specifies the maximum number of bytes to receive.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
+-- | Just like 'socketS', except each request from downstream specifies the
+-- maximum number of bytes to receive.
 nsocketS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -236,7 +232,7 @@ nsocketS (Just wait) sock = loop where
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
--- | Sends to the remote end the bytes received from upstream and then forwards
+-- | Sends to the remote end the bytes received from upstream, then forwards
 -- such same bytes downstream.
 --
 -- If an optional timeout is given and sending data to the remote end takes
