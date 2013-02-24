@@ -40,16 +40,18 @@ module Control.Proxy.Safe.Network.TCP (
   HostPreference(..)
   ) where
 
-import           Control.Concurrent                        (forkIO, ThreadId)
-import qualified Control.Exception                         as E
+import           Control.Concurrent            (forkIO, ThreadId)
+import qualified Control.Exception             as E
 import           Control.Monad
-import qualified Control.Proxy                             as P
+import qualified Control.Proxy                 as P
 import           Control.Proxy.Network.Util
-import qualified Control.Proxy.Network.TCP                 as T
-import qualified Control.Proxy.Safe                        as P
-import qualified Data.ByteString                           as B
-import qualified Network.Socket                            as NS
-import           Network.Socket.ByteString                 (sendAll, recv)
+import qualified Control.Proxy.Network.TCP     as T
+import qualified Control.Proxy.Safe            as P
+import qualified Data.ByteString               as B
+import           Data.Monoid
+import qualified Network.Socket                as NS
+import           Network.Socket.ByteString     (sendAll, recv)
+import           System.Timeout                (timeout)
 
 
 --------------------------------------------------------------------------------
@@ -88,6 +90,10 @@ withConnect morph host port =
 -- | Connect to a TCP server and send downstream the bytes received from the
 -- remote end, by means of 'socketReaderS'.
 --
+-- If an optional timeout is given and receiveing data from the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
+--
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- Using this proxy you can write straightforward code like the following, which
@@ -98,13 +104,14 @@ withConnect morph host port =
 -- > runSafeIO . runProxy . runEitherK $ session
 connectReaderS
   :: P.Proxy p
-  => Int                         -- ^Maximum number of bytes to receive at once.
-  -> NS.HostName                 -- ^Server host name.
-  -> NS.ServiceName              -- ^Server service name (port).
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> Int                -- ^Maximum number of bytes to receive at once.
+  -> NS.HostName        -- ^Server host name.
+  -> NS.ServiceName     -- ^Server service name (port).
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-connectReaderS nbytes host port () = do
+connectReaderS mmaxwait nbytes host port () = do
    withConnect id host port $ \(csock,_) -> do
-     socketReaderS nbytes csock ()
+     socketReaderS mmaxwait nbytes csock ()
 
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
@@ -112,21 +119,26 @@ connectReaderS nbytes host port () = do
 --
 -- Requests from downstream are forwarded upstream.
 --
+-- If an optional timeout is given and sending data to the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
+--
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client listening locally at port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> clientC "127.0.0.1" "9000"
+-- > let session = fromListS ["He","llo\r\n"] >-> connectWriterD Nothing "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
 connectWriterD
   :: P.Proxy p
-  => NS.HostName                 -- ^Server host name.
-  -> NS.ServiceName              -- ^Server service name (port).
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> NS.HostName        -- ^Server host name.
+  -> NS.ServiceName     -- ^Server service name (port).
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-connectWriterD hp port x = do
+connectWriterD mmaxwait hp port x = do
    withConnect id hp port $ \(csock,_) ->
-     socketWriterD csock x
+     socketWriterD mmaxwait csock x
 
 --------------------------------------------------------------------------------
 
@@ -236,6 +248,10 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- | Bind a listening socket, accept a single connection and send downstream
 -- any bytes received from the remote end, by means of 'socketReaderS'.
 --
+-- If an optional timeout is given and receiveing data from the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
+--
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
@@ -250,19 +266,24 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- > runSafeIO . runProxy . runEitherK $ session
 serveReaderS
   :: P.Proxy p
-  => Int                         -- ^Maximum number of bytes to receive at once.
-  -> HostPreference              -- ^Preferred host to bind to.
-  -> NS.ServiceName              -- ^Service name (port) to bind to.
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> Int                -- ^Maximum number of bytes to receive at once.
+  -> HostPreference     -- ^Preferred host to bind to.
+  -> NS.ServiceName     -- ^Service name (port) to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serveReaderS nbytes hp port () = do
+serveReaderS mmaxwait nbytes hp port () = do
    withServer id hp port $ \(csock,_) -> do
-     socketReaderS nbytes csock ()
+     socketReaderS mmaxwait nbytes csock ()
 
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream and then forwards such bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
+--
+-- If an optional timeout is given and sending data to the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -274,12 +295,13 @@ serveReaderS nbytes hp port () = do
 -- > runSafeIO . runProxy . runEitherK $ session
 serveWriterD
   :: P.Proxy p
-  => HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> HostPreference     -- ^Preferred host to bind to.
+  -> NS.ServiceName     -- ^Service name (port) to bind to.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-serveWriterD hp port x = do
+serveWriterD mmaxwait hp port x = do
    withServer id hp port $ \(csock,_) -> do
-     socketWriterD csock x
+     socketWriterD mmaxwait csock x
 
 --------------------------------------------------------------------------------
 
@@ -292,48 +314,85 @@ serveWriterD hp port x = do
 -- | Socket 'P.Producer' proxy. Receives bytes from the remote end and sends
 -- them downstream.
 --
+-- If an optional timeout is given and receiveing data from the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
+--
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
 socketReaderS
   :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive at once.
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-socketReaderS nbytes sock () = loop where
+socketReaderS Nothing nbytes sock () = loop where
     loop = do
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
+socketReaderS (Just maxwait) nbytes sock () = loop where
+    loop = do
+      mbs <- P.tryIO . timeout maxwait $ recv sock nbytes
+      case mbs of
+        Nothing -> P.throw ex
+        Just bs -> unless (B.null bs) $ P.respond bs >> loop
+    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
 
--- | Socket 'P.Server' proxy similar to 'socketReaderS', except each request from
--- downstream specifies the maximum number of bytes to receive.
+
+-- | Socket 'P.Server' proxy similar to 'socketReaderS', except each request
+-- from downstream specifies the maximum number of bytes to receive.
+--
+-- If an optional timeout is given and receiveing data from the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
 nsocketReaderS
   :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
-  -> Int
-  -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
-nsocketReaderS sock = loop where
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> NS.Socket          -- ^Connected socket.
+  -> Int -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
+nsocketReaderS Nothing sock = loop where
     loop nbytes = do
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
+nsocketReaderS (Just maxwait) sock = loop where
+    loop nbytes = do
+      mbs <- P.tryIO . timeout maxwait $ recv sock nbytes
+      case mbs of
+        Nothing -> P.throw ex
+        Just bs -> unless (B.null bs) $ P.respond bs >>= loop
+    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
 
 -- | Sends to the remote end the bytes received from upstream and then forwards
 -- such same bytes downstream.
 --
+-- If an optional timeout is given and sending data to the remote end takes
+-- more time that such timeout, then throw a 'Timeout' exception in the
+-- 'P.ExceptionP' proxy transformer.
+--
 -- Requests from downstream are forwarded upstream.
 socketWriterD
   :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> NS.Socket          -- ^Connected socket.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
-socketWriterD sock = P.foreverK $ loop where
+socketWriterD Nothing sock = loop where
     loop x = do
       a <- P.request x
       P.tryIO $ sendAll sock a
       P.respond a >>= loop
+socketWriterD (Just maxwait) sock = loop where
+    loop x = do
+      a <- P.request x
+      m <- P.tryIO . timeout maxwait $ sendAll sock a
+      case m of
+        Nothing -> P.throw ex
+        Just () -> P.respond a >>= loop
+    ex = Timeout $ "sendAll: " <> show maxwait <> " microseconds."
 
 --------------------------------------------------------------------------------
 
@@ -390,5 +449,3 @@ listen hp port = P.tryIO $ T.listen hp port
 -- > close sock = tryIO $ Control.Proxy.Network.TCP.close sock
 close :: P.Proxy p => NS.Socket -> P.ExceptionP p a' a b' b P.SafeIO ()
 close = P.tryIO . T.close
-
-
