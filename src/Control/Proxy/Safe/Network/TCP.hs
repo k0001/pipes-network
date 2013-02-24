@@ -23,7 +23,7 @@ module Control.Proxy.Safe.Network.TCP (
   acceptFork,
   -- * Client side
   -- $client-side
-  withConnect,
+  connect,
   -- ** Quick one-time clients
   connectReaderS,
   connectWriterD,
@@ -61,9 +61,9 @@ import           System.Timeout                (timeout)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'T.connect' and
+-- If you would like to close the socket yourself, then use the 'T.connect'' and
 -- 'NS.sClose' functions instead.
-withConnect
+connect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.HostName                   -- ^Server hostname.
@@ -73,8 +73,8 @@ withConnect
                                    -- communication socket and the server
                                    -- address.
   -> P.ExceptionP p a' a b' b m r
-withConnect morph host port =
-    P.bracket morph (T.connect host port) (NS.sClose . fst)
+connect morph host port =
+    P.bracket morph (T.connect' host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -101,7 +101,7 @@ connectReaderS
   -> NS.ServiceName     -- ^Server service port.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 connectReaderS mmaxwait nbytes host port () = do
-   withConnect id host port $ \(csock,_) -> do
+   connect id host port $ \(csock,_) -> do
      socketReaderS mmaxwait nbytes csock ()
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
@@ -127,7 +127,7 @@ connectWriterD
   -> NS.ServiceName     -- ^Server service port.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 connectWriterD mmaxwait hp port x = do
-   withConnect id hp port $ \(csock,_) ->
+   connect id hp port $ \(csock,_) ->
      socketWriterD mmaxwait csock x
 
 --------------------------------------------------------------------------------

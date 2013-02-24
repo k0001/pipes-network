@@ -21,7 +21,7 @@ module Control.Proxy.Network.TCP (
   acceptFork,
   -- * Client side
   -- $client-side
-  withConnect,
+  connect,
   -- * Socket proxies
   -- $socket-proxies
   socketReaderS,
@@ -34,7 +34,7 @@ module Control.Proxy.Network.TCP (
   socketWriterTimeoutD,
   -- * Low level support
   bind,
-  connect,
+  connect',
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -65,16 +65,16 @@ import           System.Timeout                (timeout)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'connect' and
+-- If you would like to close the socket yourself, then use the 'connect'' and
 -- 'NS.sClose' instead.
-withConnect
+connect
   :: NS.HostName      -- ^Server hostname.
   -> NS.ServiceName   -- ^Server service port.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                       -- ^Guarded computation taking the communication socket
                       -- and the server address.
   -> IO r
-withConnect host port = E.bracket (connect host port) (NS.sClose . fst)
+connect host port = E.bracket (connect' host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -284,11 +284,11 @@ socketWriterTimeoutD maxwait sock = loop where
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
 -- it's not needed anymore, otherwise it will remain open.
 --
--- Prefer to use 'withConnect' if you will be using the socket within a limited
+-- Prefer to use 'connect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage or in case
 -- of exceptions.
-connect :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
-connect host port = do
+connect' :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
+connect' host port = do
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just port)
     E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
        let sockAddr = NS.addrAddress addr
