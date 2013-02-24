@@ -4,8 +4,8 @@
 -- resources acquired and release within a 'P.Proxy' pipeline, using the
 -- facilities provided by 'P.ExceptionP', from the @pipes-safe@ library.
 --
--- Instead, if want to just want to safely acquire and release resources outside
--- a 'P.Proxy' pipeline, then you should use the similar functions exported by
+-- Instead, if want acquire and release resources outside a 'P.Proxy' pipeline,
+-- then you should use the similar functions exported by
 -- "Control.Proxy.Network.TCP".
 
 module Control.Proxy.Safe.Network.TCP (
@@ -32,10 +32,6 @@ module Control.Proxy.Safe.Network.TCP (
   socketReaderS,
   nsocketReaderS,
   socketWriterD,
-  -- * Low level support
-  -- $low-level
-  listen,
-  connect,
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -61,13 +57,12 @@ import           System.Timeout                (timeout)
 -- The following functions allow you to obtain 'NS.Socket's useful to the
 -- client side of a TCP connection.
 
-
 -- | Connect to a TCP server and use the connection.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'connect' and
--- 'NS.sClose' instead.
+-- If you would like to close the socket yourself, then use the 'T.connect' and
+-- 'NS.sClose' functions instead.
 withConnect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -149,7 +144,7 @@ connectWriterD mmaxwait hp port x = do
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'listen' and
+-- If you would like to close the socket yourself, then use the 'T.listen' and
 -- 'NS.sClose' functions instead.
 withListen
   :: (P.Proxy p, Monad m)
@@ -384,51 +379,3 @@ socketWriterD (Just maxwait) sock = loop where
         Nothing -> P.throw ex
         Just () -> P.respond a >>= loop
     ex = Timeout $ "sendAll: " <> show maxwait <> " microseconds."
-
---------------------------------------------------------------------------------
-
--- $low-level
---
--- The following functions are provided for your convenience. They simply
--- compose 'P.tryIO' with their "Control.Proxy.Network.TCP" counterparts, so
--- that you don't need to do it.
-
--- | Attempt to connect to the given host name and service port.
---
--- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
--- it's not needed anymore, otherwise it will remain open.
---
--- Prefer to use 'withConnect' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage, or in case
--- of exceptions.
---
--- > connect host port = tryIO $ Control.Proxy.Network.TCP.connect host port
-connect
-  :: P.Proxy p
-  => NS.HostName                   -- ^Server hostname.
-  -> NS.ServiceName                -- ^Server service port.
-  -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
-connect host port = P.tryIO $ T.connect host port
-
-
--- | Attempt to bind a listening 'NS.Socket' on the given host preference and
--- service port.
---
--- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
--- it's not needed anymore, otherwise it will remain open.
---
--- Prefer to use 'withListen' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage, or in case
--- of exceptions.
---
--- 'N.maxListenQueue' is tipically 128, which is too small for high performance
--- servers. So, we use the maximum between 'N.maxListenQueue' and 2048 as the
--- default size of the listening queue.
---
--- > listen hp port = tryIO $ Control.Proxy.Network.TCP.listen hp port
-listen
-  :: P.Proxy p
-  => HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service port to bind to.
-  -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
-listen hp port = P.tryIO $ T.listen hp port
