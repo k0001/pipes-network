@@ -38,7 +38,8 @@ module Control.Proxy.Network.TCP (
   connect,
   close,
   -- * Exports
-  HostPreference(..)
+  HostPreference(..),
+  Timeout(..)
   ) where
 
 

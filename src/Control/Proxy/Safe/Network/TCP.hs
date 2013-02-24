@@ -37,7 +37,8 @@ module Control.Proxy.Safe.Network.TCP (
   connect,
   close,
   -- * Exports
-  HostPreference(..)
+  HostPreference(..),
+  Timeout(..)
   ) where
 
 import           Control.Concurrent            (forkIO, ThreadId)
