@@ -45,7 +45,12 @@ hpHostName:: HostPreference -> Maybe NS.HostName
 hpHostName (Host s) = Just s
 hpHostName _        = Nothing
 
+--------------------------------------------------------------------------------
 
 -- | Exception thrown when a timeout has elapsed.
-data Timeout = Timeout deriving (Eq, Show, Typeable)
+data Timeout
+  = Timeout
+    String -- ^ Additional message.
+  deriving (Eq, Show, Typeable)
+
 instance E.Exception Timeout where

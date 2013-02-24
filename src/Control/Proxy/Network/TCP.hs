@@ -50,6 +50,7 @@ import qualified Control.Proxy                 as P
 import qualified Control.Proxy.Trans.Either    as PE
 import           Control.Proxy.Network.Util
 import qualified Data.ByteString               as B
+import           Data.Monoid
 import           Data.List                     (partition)
 import qualified Network.Socket                as NS
 import           Network.Socket.ByteString     (recv, sendAll)
@@ -252,8 +253,9 @@ socketTimedReaderS maxwait nbytes sock () = loop where
     loop = do
       mbs <- lift . timeout maxwait $ recv sock nbytes
       case mbs of
-        Nothing -> PE.throw Timeout
+        Nothing -> PE.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
+    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
 
 -- | Like 'nsocketReaderS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
@@ -267,8 +269,9 @@ nsocketTimedReaderS maxwait sock = loop where
     loop nbytes = do
       mbs <- lift . timeout maxwait $ recv sock nbytes
       case mbs of
-        Nothing -> PE.throw Timeout
+        Nothing -> PE.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
+    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
 
 -- | Like 'socketWriterD', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
@@ -283,8 +286,9 @@ socketTimedWriterD maxwait sock = loop where
       a <- P.request x
       mbs <- lift . timeout maxwait $ sendAll sock a
       case mbs of
-        Nothing -> PE.throw Timeout
+        Nothing -> PE.throw ex
         Just () -> P.respond a >>= loop
+    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
 
 --------------------------------------------------------------------------------
 
