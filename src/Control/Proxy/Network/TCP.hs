@@ -236,13 +236,13 @@ socketTimeoutS
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (PE.EitherP Timeout p) B.ByteString IO ()
-socketTimeoutS maxwait nbytes sock () = loop where
+socketTimeoutS wait nbytes sock () = loop where
     loop = do
-      mbs <- lift . timeout maxwait $ recv sock nbytes
+      mbs <- lift . timeout wait $ recv sock nbytes
       case mbs of
         Nothing -> PE.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
-    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
+    ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
 -- | Like 'nsocketS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
@@ -252,13 +252,13 @@ nsocketTimeoutS
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Int -> P.Server (PE.EitherP Timeout p) Int B.ByteString IO ()
-nsocketTimeoutS maxwait sock = loop where
+nsocketTimeoutS wait sock = loop where
     loop nbytes = do
-      mbs <- lift . timeout maxwait $ recv sock nbytes
+      mbs <- lift . timeout wait $ recv sock nbytes
       case mbs of
         Nothing -> PE.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
-    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
+    ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
 -- | Like 'socketD', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
@@ -268,14 +268,14 @@ socketTimeoutD
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO r
-socketTimeoutD maxwait sock = loop where
+socketTimeoutD wait sock = loop where
     loop x = do
       a <- P.request x
-      mbs <- lift . timeout maxwait $ sendAll sock a
+      mbs <- lift . timeout wait $ sendAll sock a
       case mbs of
         Nothing -> PE.throw ex
         Just () -> P.respond a >>= loop
-    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
+    ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
 --------------------------------------------------------------------------------
 

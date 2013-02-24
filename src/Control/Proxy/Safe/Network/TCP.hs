@@ -100,9 +100,9 @@ connectS
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-connectS mmaxwait nbytes host port () = do
+connectS mwait nbytes host port () = do
    connect id host port $ \(csock,_) -> do
-     socketS mmaxwait nbytes csock ()
+     socketS mwait nbytes csock ()
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream, then forwards such same bytes downstream.
@@ -126,9 +126,9 @@ connectD
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-connectD mmaxwait hp port x = do
+connectD mwait hp port x = do
    connect id hp port $ \(csock,_) ->
-     socketD mmaxwait csock x
+     socketD mwait csock x
 
 --------------------------------------------------------------------------------
 
@@ -262,10 +262,10 @@ serveS
   -> HostPreference     -- ^Preferred host to bind to.
   -> NS.ServiceName     -- ^Service port to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serveS mmaxwait nbytes hp port () = do
+serveS mwait nbytes hp port () = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
-       socketS mmaxwait nbytes csock ()
+       socketS mwait nbytes csock ()
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream, then forwards such sames bytes
@@ -291,10 +291,10 @@ serveD
   -> HostPreference     -- ^Preferred host to bind to.
   -> NS.ServiceName     -- ^Service port to bind to.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-serveD mmaxwait hp port x = do
+serveD mwait hp port x = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
-       socketD mmaxwait csock x
+       socketD mwait csock x
 
 --------------------------------------------------------------------------------
 
@@ -323,13 +323,13 @@ socketS Nothing nbytes sock () = loop where
     loop = do
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
-socketS (Just maxwait) nbytes sock () = loop where
+socketS (Just wait) nbytes sock () = loop where
     loop = do
-      mbs <- P.tryIO . timeout maxwait $ recv sock nbytes
+      mbs <- P.tryIO . timeout wait $ recv sock nbytes
       case mbs of
         Nothing -> P.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
-    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
+    ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
 -- | Socket 'P.Server' proxy similar to 'socketS', except each request
 -- from downstream specifies the maximum number of bytes to receive.
@@ -346,13 +346,13 @@ nsocketS Nothing sock = loop where
     loop nbytes = do
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
-nsocketS (Just maxwait) sock = loop where
+nsocketS (Just wait) sock = loop where
     loop nbytes = do
-      mbs <- P.tryIO . timeout maxwait $ recv sock nbytes
+      mbs <- P.tryIO . timeout wait $ recv sock nbytes
       case mbs of
         Nothing -> P.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
-    ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
+    ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
 -- | Sends to the remote end the bytes received from upstream and then forwards
 -- such same bytes downstream.
@@ -372,11 +372,11 @@ socketD Nothing sock = loop where
       a <- P.request x
       P.tryIO $ sendAll sock a
       P.respond a >>= loop
-socketD (Just maxwait) sock = loop where
+socketD (Just wait) sock = loop where
     loop x = do
       a <- P.request x
-      m <- P.tryIO . timeout maxwait $ sendAll sock a
+      m <- P.tryIO . timeout wait $ sendAll sock a
       case m of
         Nothing -> P.throw ex
         Just () -> P.respond a >>= loop
-    ex = Timeout $ "sendAll: " <> show maxwait <> " microseconds."
+    ex = Timeout $ "sendAll: " <> show wait <> " microseconds."
