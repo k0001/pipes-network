@@ -91,8 +91,9 @@ connect morph host port =
 -- prints whatever is received from a single TCP connection to a given server
 -- listening locally on port 9000:
 --
--- > let session = connectS Nothing "127.0.0.1" "9000" >-> tryK printD
--- > runSafeIO . runProxy . runEitherK $ session
+-- >>> :set -XOverloadedStrings
+-- >>> runSafeIO . runProxy . runEitherK $
+-- >>>     connectS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 connectS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -118,8 +119,9 @@ connectS mwait nbytes host port () = do
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client listening locally at port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> connectD Nothing "127.0.0.1" "9000"
--- > runSafeIO . runProxy . runEitherK $ session
+-- >>> :set -XOverloadedStrings
+-- >>> runSafeIO . runProxy . runEitherK $
+-- >>>     fromListS ["He","llo\r\n"] >-> connectD Nothing "127.0.0.1" "9000"
 connectD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -253,8 +255,9 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- Using this proxy you can write straightforward code like the following, which
 -- prints whatever is received from a single TCP connection to port 9000:
 --
--- > let session = serveS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
--- > runSafeIO . runProxy . runEitherK $ session
+-- >>> :set -XOverloadedStrings
+-- >>> runSafeIO . runProxy . runEitherK $
+-- >>>     serveS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 serveS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -283,8 +286,9 @@ serveS mwait nbytes hp port () = do
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client connecting to port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> serveD "127.0.0.1" "9000"
--- > runSafeIO . runProxy . runEitherK $ session
+-- >>> :set -XOverloadedStrings
+-- >>> runSafeIO . runProxy . runEitherK $
+-- >>>     fromListS ["He","llo\r\n"] >-> serveD Nothing "127.0.0.1" "9000"
 serveD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
