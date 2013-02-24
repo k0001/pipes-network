@@ -58,8 +58,8 @@ import           System.Timeout                (timeout)
 
 -- $client-side
 --
--- The following functions allow you to obtain 'NS.Socket's useful to the
--- client side of a TCP connection.
+-- The following functions allow you to obtain and use 'NS.Socket's useful to
+-- the client side of a TCP connection.
 
 -- | Connect to a TCP server and use the connection.
 --
@@ -71,7 +71,7 @@ connect
   :: NS.HostName      -- ^Server hostname.
   -> NS.ServiceName   -- ^Server service port.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                      -- ^Guarded computation taking the communication socket
+                      -- ^Computation taking the communication socket
                       -- and the server address.
   -> IO r
 connect host port = E.bracket (connectSock host port) (NS.sClose . fst)
@@ -80,8 +80,8 @@ connect host port = E.bracket (connectSock host port) (NS.sClose . fst)
 
 -- $server-side
 --
--- The following functions allow you to obtain 'NS.Socket's useful to the
--- server side of a TCP connection.
+-- The following functions allow you to obtain and use 'NS.Socket's useful to
+-- the server side of a TCP connection.
 
 -- | Bind a TCP listening socket and use it.
 --
@@ -97,7 +97,7 @@ listen
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                      -- ^Guarded computation taking the listening socket and
+                      -- ^Computation taking the listening socket and
                       -- the address it's bound to.
   -> IO r
 listen hp port = E.bracket listen' (NS.sClose . fst)
@@ -109,13 +109,13 @@ listen hp port = E.bracket listen' (NS.sClose . fst)
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.
 --
--- Both the listening and connection socket are closed when done or in case of
+-- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 serve
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                      -- ^Guarded computatation to run once an incomming
+                      -- ^Computation to run once an incomming
                       -- connection is accepted. Takes the connection socket
                       -- and remote end address.
   -> IO r
@@ -132,7 +132,7 @@ serveFork
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                      -- ^Guarded computatation to run in a different thread
+                      -- ^Computation to run in a different thread
                       -- once an incomming connection is accepted. Takes the
                       -- connection socket and remote end address.
   -> IO ()
@@ -146,7 +146,7 @@ serveFork hp port k = do
 accept
   :: NS.Socket        -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO b)
-                      -- ^Guarded computatation to run once an incomming
+                      -- ^Computation to run once an incomming
                       -- connection is accepted. Takes the connection socket
                       -- and remote end address.
   -> IO b
@@ -160,7 +160,7 @@ accept lsock k = do
 acceptFork
   :: NS.Socket        -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                      -- ^Guarded computatation to run in a different thread
+                      -- ^Computation to run in a different thread
                       -- once an incomming connection is accepted. Takes the
                       -- connection socket and remote end address.
   -> IO ThreadId
@@ -279,7 +279,7 @@ socketTimeoutD wait sock = loop where
 
 --------------------------------------------------------------------------------
 
--- | Connect to the given host name and service port.
+-- | Obtain a 'NS.Socket' connected to the given host name and TCP service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
 -- it's not needed anymore, otherwise it will remain open.
@@ -298,7 +298,7 @@ connectSock host port = do
     hints = NS.defaultHints { NS.addrFlags = [NS.AI_ADDRCONFIG]
                             , NS.addrSocketType = NS.Stream }
 
--- | Bind a TCP port on the given host.
+-- | Obtain a 'NS.Socket' bound to the given host name and TCP service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
 -- it's not needed anymore, otherwise it will remain open.
