@@ -1,5 +1,3 @@
-{-# OPTIONS_HADDOCK prune #-}
-
 -- | This module exports functions that allow you safely use 'NS.Socket'
 -- resources acquired and release outside a 'P.Proxy' pipeline.
 --
@@ -11,13 +9,14 @@
 -- Michael Snoyman. Copyright (c) 2011. See its licensing terms (BSD3) at:
 --   https://github.com/snoyberg/conduit/blob/master/network-conduit/LICENSE
 
-
 module Control.Proxy.Network.TCP (
   -- * Server side
   -- $server-side
   withForkingServer,
   withServer,
+  -- ** Listening
   withListen,
+  -- ** Accepting
   accept,
   acceptFork,
   -- * Client side
@@ -42,7 +41,6 @@ module Control.Proxy.Network.TCP (
   Timeout(..)
   ) where
 
-
 import           Control.Concurrent            (ThreadId, forkIO)
 import qualified Control.Exception             as E
 import           Control.Monad
@@ -57,14 +55,12 @@ import qualified Network.Socket                as NS
 import           Network.Socket.ByteString     (recv, sendAll)
 import           System.Timeout                (timeout)
 
-
 --------------------------------------------------------------------------------
 
 -- $client-side
 --
 -- The following functions allow you to obtain 'NS.Socket's useful to the
 -- client side of a TCP connection.
-
 
 -- | Connect to a TCP server and use the connection.
 --
@@ -73,19 +69,17 @@ import           System.Timeout                (timeout)
 -- If you would like to close the socket yourself, then use the 'connect' and
 -- 'close' instead.
 withConnect
-  :: NS.HostName                   -- ^Server hostname.
-  -> NS.ServiceName                -- ^Server service name (port).
+  :: NS.HostName      -- ^Server hostname.
+  -> NS.ServiceName   -- ^Server service port.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                                   -- ^Guarded computation taking the
-                                   --  communication socket and the server
-                                   --  address.
+                      -- ^Guarded computation taking the communication socket
+                      -- and the server address.
   -> IO r
 withConnect host port =
     E.bracket connect' close'
   where
     connect' = connect host port
     close' (s,_) = NS.sClose s
-
 
 --------------------------------------------------------------------------------
 
@@ -94,19 +88,18 @@ withConnect host port =
 -- The following functions allow you to obtain 'NS.Socket's useful to the
 -- server side of a TCP connection.
 
-
--- | Start a TCP server and use it.
+-- | Bind a TCP listening socket and use it.
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
 -- 'close' instead.
 withListen
-  :: HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  :: HostPreference   -- ^Preferred host to bind.
+  -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                                   -- ^Guarded computation taking the listening
-                                   --  socket and the address it's bound to.
+                      -- ^Guarded computation taking the listening socket and
+                      -- the address it's bound to.
   -> IO r
 withListen hp port =
     E.bracket bind close'
@@ -114,79 +107,74 @@ withListen hp port =
     bind = listen hp port
     close' (s,_) = NS.sClose s
 
-
--- | Start a TCP server sequentially accepting and using incomming connections.
+-- | Start a TCP server that sequentially accepts and uses each incomming
+-- connection.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
 withServer
-  :: HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  :: HostPreference   -- ^Preferred host to bind.
+  -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                                   -- ^Guarded computation taking the listening
-                                   --  socket and the address it's bound to.
+                      -- ^Guarded computatation to run once an incomming
+                      -- connection is accepted. Takes the connection socket
+                      -- and remote end address.
   -> IO r
 withServer hp port k = do
     withListen hp port $ \(lsock,_) -> do
       forever $ accept lsock k
 
-
--- | Start a TCP server, accept each incomming connection and use it on a
--- different thread.
+-- | Start a TCP server that accepts incomming connections and uses them
+-- concurrently in different threads.
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
 withForkingServer
-  :: HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  :: HostPreference   -- ^Preferred host to bind.
+  -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                   -- ^Computatation to run on a different
-                                   -- thread once an incomming connection is
-                                   -- accepted. Takes the connection socket
-                                   -- and remote end address.
+                      -- ^Guarded computatation to run in a different thread
+                      -- once an incomming connection is accepted. Takes the
+                      -- connection socket and remote end address.
   -> IO ()
 withForkingServer hp port k = do
     withListen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
-
--- | Accept an incomming connection and use it.
+-- | Accept a single incomming connection and use it.
 --
 -- The connection socket is closed when done or in case of exceptions.
 accept
-  :: NS.Socket                     -- ^Listening and bound socket.
+  :: NS.Socket        -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO b)
-                                   -- ^Computation to run once an incomming
-                                   --  connection is accepted. Takes the
-                                   --  connection socket and remote end address.
+                      -- ^Guarded computatation to run once an incomming
+                      -- connection is accepted. Takes the connection socket
+                      -- and remote end address.
   -> IO b
 accept lsock k = do
     conn@(csock,_) <- NS.accept lsock
     E.finally (k conn) (NS.sClose csock)
 
-
--- | Accept an incomming connection and use it on a different thread.
+-- | Accept a single incomming connection and use it in a different thread.
 --
 -- The connection socket is closed when done or in case of exceptions.
 acceptFork
-  :: NS.Socket                     -- ^Listening and bound socket.
+  :: NS.Socket        -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                   -- ^Computatation to run on a different
-                                   -- thread once an incomming connection is
-                                   -- accepted. Takes the connection socket
-                                   -- and remote end address.
+                      -- ^Guarded computatation to run in a different thread
+                      -- once an incomming connection is accepted. Takes the
+                      -- connection socket and remote end address.
   -> IO ThreadId
 acceptFork lsock f = do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
-
 
 --------------------------------------------------------------------------------
 
 -- $socket-proxies
 --
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
--- to send to and receive from the other connection end.
+-- to interact with the other connection end.
 
 -- | Socket 'P.Producer' proxy. Receives bytes from the remote end sends them
 -- downstream.
@@ -204,7 +192,6 @@ socketReaderS nbytes sock () = P.runIdentityP loop where
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
 
-
 -- | Socket 'P.Server' proxy similar to 'socketReaderS', except each request
 -- from downstream specifies the maximum number of bytes to receive.
 --
@@ -214,14 +201,13 @@ socketReaderS nbytes sock () = P.runIdentityP loop where
 nsocketReaderS
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> Int
-  -> P.Server p Int B.ByteString IO ()
+  -> Int -> P.Server p Int B.ByteString IO ()
 nsocketReaderS sock = P.runIdentityK loop where
     loop nbytes = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
 
--- | Sends to the remote end the bytes received from upstream and then forwards
+-- | Sends to the remote end the bytes received from upstream, then forwards
 -- such same bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
@@ -236,14 +222,15 @@ socketWriterD sock = P.runIdentityK loop where
       P.respond a >>= loop
 
 --------------------------------------------------------------------------------
+
 -- $socket-proxies-timeout
 --
--- These proxies behave like the ones named similarly above, except these
+-- These proxies behave like the ones similarly named above, except these
 -- support timing out the interaction with the remote end.
 
 -- | Like 'socketReaderS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
--- more time that the given timeout.
+-- more time than specified.
 socketReaderTimeoutS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
@@ -260,7 +247,7 @@ socketReaderTimeoutS maxwait nbytes sock () = loop where
 
 -- | Like 'nsocketReaderS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
--- more time that the given timeout.
+-- more time than specified.
 nsocketReaderTimeoutS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
@@ -276,7 +263,7 @@ nsocketReaderTimeoutS maxwait sock = loop where
 
 -- | Like 'socketWriterD', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
--- more time that the given timeout.
+-- more time than specified.
 socketWriterTimeoutD
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
@@ -293,16 +280,15 @@ socketWriterTimeoutD maxwait sock = loop where
 
 --------------------------------------------------------------------------------
 
--- | Attempt to connect to the given host name and service name (port).
+-- | Connect to the given host name and service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withConnect' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage, or in case
+-- scope and would like it to be closed immediately after its usage or in case
 -- of exceptions.
 connect :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
--- TODO Abstract away socket type.
 connect host port = do
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just port)
     E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
@@ -313,15 +299,14 @@ connect host port = do
     hints = NS.defaultHints { NS.addrFlags = [NS.AI_ADDRCONFIG]
                             , NS.addrSocketType = NS.Stream }
 
-
--- | Attempt to bind a listening 'NS.Socket' on the given host preference and
+-- | Attempt to bind a listening socket on the given host preference and
 -- service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withListen' if you will be using the socket within a limited
--- scope and would like it to be closed immediately after its usage, or in case
+-- scope and would like it to be closed immediately after its usage or in case
 -- of exceptions.
 --
 -- 'N.maxListenQueue' is tipically 128, which is too small for high performance
@@ -339,10 +324,10 @@ listen hp port = do
     hints = NS.defaultHints { NS.addrFlags = [NS.AI_PASSIVE]
                             , NS.addrSocketType = NS.Stream }
 
+    tryAddrs []     = error "listen: no addresses available"
     tryAddrs [x]    = useAddr x
     tryAddrs (x:xs) = E.catch (useAddr x)
                               (\e -> let _ = e :: E.IOException in tryAddrs xs)
-    tryAddrs _      = error "listen: addrs is empty"
 
     useAddr addr = E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
       let sockAddr = NS.addrAddress addr
@@ -352,12 +337,12 @@ listen hp port = do
       NS.listen sock (max 2048 NS.maxListenQueue)
       return (sock, sockAddr)
 
-
 -- | Close the socket. All future operations on the socket object will fail. The
 -- remote end will receive no more data (after queued data is flushed).
 close :: NS.Socket -> IO ()
 close = NS.sClose
 
+--------------------------------------------------------------------------------
 
 -- Misc
 
