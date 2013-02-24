@@ -15,7 +15,7 @@ module Control.Proxy.Safe.Network.TCP (
   serveFork,
   -- ** Quick one-time servers
   serveS,
-  serveWriterD,
+  serveD,
   -- ** Listening
   listen,
   -- ** Accepting
@@ -26,7 +26,7 @@ module Control.Proxy.Safe.Network.TCP (
   connect,
   -- ** Quick one-time clients
   connectS,
-  connectWriterD,
+  connectD,
   -- * Socket proxies
   -- $socket-proxies
   socketS,
@@ -118,15 +118,15 @@ connectS mmaxwait nbytes host port () = do
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client listening locally at port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> connectWriterD Nothing "127.0.0.1" "9000"
+-- > let session = fromListS ["He","llo\r\n"] >-> connectD Nothing "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
-connectWriterD
+connectD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-connectWriterD mmaxwait hp port x = do
+connectD mmaxwait hp port x = do
    connect id hp port $ \(csock,_) ->
      socketD mmaxwait csock x
 
@@ -283,15 +283,15 @@ serveS mmaxwait nbytes hp port () = do
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client connecting to port 9000:
 --
--- > let session = fromListS ["He","llo\r\n"] >-> serveWriterD "127.0.0.1" "9000"
+-- > let session = fromListS ["He","llo\r\n"] >-> serveD "127.0.0.1" "9000"
 -- > runSafeIO . runProxy . runEitherK $ session
-serveWriterD
+serveD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> HostPreference     -- ^Preferred host to bind to.
   -> NS.ServiceName     -- ^Service port to bind to.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-serveWriterD mmaxwait hp port x = do
+serveD mmaxwait hp port x = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
        socketD mmaxwait csock x
