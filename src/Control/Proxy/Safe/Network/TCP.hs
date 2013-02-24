@@ -244,8 +244,6 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- | Binds a listening socket, accepts a single connection and sends downstream
 -- any bytes received from the remote end.
 --
--- FIXME this accepts many connnections sequentially, not just one.
---
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
 -- 'P.ExceptionP' proxy transformer.
@@ -270,14 +268,13 @@ serveReaderS
   -> NS.ServiceName     -- ^Service port to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 serveReaderS mmaxwait nbytes hp port () = do
-   withServer id hp port $ \(csock,_) -> do
-     socketReaderS mmaxwait nbytes csock ()
+   withListen id hp port $ \(lsock,_) -> do
+     accept id lsock $ \(csock,_) -> do
+       socketReaderS mmaxwait nbytes csock ()
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream, then forwards such sames bytes
 -- downstream.
---
--- FIXME this accepts many connnections sequentially, not just one.
 --
 -- Requests from downstream are forwarded upstream.
 --
@@ -300,8 +297,9 @@ serveWriterD
   -> NS.ServiceName     -- ^Service port to bind to.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 serveWriterD mmaxwait hp port x = do
-   withServer id hp port $ \(csock,_) -> do
-     socketWriterD mmaxwait csock x
+   withListen id hp port $ \(lsock,_) -> do
+     accept id lsock $ \(csock,_) -> do
+       socketWriterD mmaxwait csock x
 
 --------------------------------------------------------------------------------
 
