@@ -2,24 +2,25 @@
 
 -- | This module exports functions that allow you safely use 'NS.Socket'
 -- resources acquired and release within a 'P.Proxy' pipeline, using the
--- facilities provided by the @pipes-safe@ library.
+-- facilities provided by 'P.ExceptionP', from the @pipes-safe@ library.
 --
 -- Instead, if want to just want to safely acquire and release resources outside
 -- a 'P.Proxy' pipeline, then you should use the similar functions exported by
 -- "Control.Proxy.Network.TCP".
-
 
 module Control.Proxy.Safe.Network.TCP (
   -- * Server side
   -- $server-side
   withForkingServer,
   withServer,
-  withListen,
-  accept,
-  acceptFork,
   -- ** Quick one-time servers
   serveReaderS,
   serveWriterD,
+  -- ** Listening
+  withListen,
+  -- ** Accepting
+  accept,
+  acceptFork,
   -- * Client side
   -- $client-side
   withConnect,
@@ -54,7 +55,6 @@ import qualified Network.Socket                as NS
 import           Network.Socket.ByteString     (sendAll, recv)
 import           System.Timeout                (timeout)
 
-
 --------------------------------------------------------------------------------
 
 -- $client-side
@@ -73,11 +73,11 @@ withConnect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.HostName                   -- ^Server hostname.
-  -> NS.ServiceName                -- ^Server service name (port).
+  -> NS.ServiceName                -- ^Server service port.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the
-                                   --  communication socket and the server
-                                   --  address.
+                                   -- communication socket and the server
+                                   -- address.
   -> P.ExceptionP p a' a b' b m r
 withConnect morph host port =
     P.bracket morph connect' close'
@@ -85,11 +85,10 @@ withConnect morph host port =
     connect' = T.connect host port
     close' (s,_) = NS.sClose s
 
-
 --------------------------------------------------------------------------------
 
 -- | Connect to a TCP server and send downstream the bytes received from the
--- remote end, by means of 'socketReaderS'.
+-- remote end.
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
@@ -101,22 +100,21 @@ withConnect morph host port =
 -- prints whatever is received from a single TCP connection to a given server
 -- listening locally on port 9000:
 --
--- > let session = clientP "127.0.0.1" "9000" >-> tryK printD
+-- > let session = connectReaderS Nothing "127.0.0.1" "9000" >-> tryK printD
 -- > runSafeIO . runProxy . runEitherK $ session
 connectReaderS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.HostName        -- ^Server host name.
-  -> NS.ServiceName     -- ^Server service name (port).
+  -> NS.ServiceName     -- ^Server service port.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 connectReaderS mmaxwait nbytes host port () = do
    withConnect id host port $ \(csock,_) -> do
      socketReaderS mmaxwait nbytes csock ()
 
-
 -- | Connects to a TCP server, sends to the remote end the bytes received from
--- upstream and then forwards such bytes downstream.
+-- upstream, then forwards such same bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
 --
@@ -135,7 +133,7 @@ connectWriterD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.HostName        -- ^Server host name.
-  -> NS.ServiceName     -- ^Server service name (port).
+  -> NS.ServiceName     -- ^Server service port.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 connectWriterD mmaxwait hp port x = do
    withConnect id hp port $ \(csock,_) ->
@@ -148,20 +146,20 @@ connectWriterD mmaxwait hp port x = do
 -- The following functions allow you to obtain 'NS.Socket's useful to the
 -- server side of a TCP connection.
 
--- | Start a TCP server and use it.
+-- | Bind a TCP listening socket and use it.
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
--- 'close' instead.
+-- 'close' functions instead.
 withListen
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> NS.ServiceName                -- ^Service port to bind to.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Guarded computation taking the listening
-                                   --  socket and the address it's bound to.
+                                   -- socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
 withListen morph hp port =
     P.bracket morph bind close'
@@ -169,8 +167,8 @@ withListen morph hp port =
     bind = T.listen hp port
     close' (s,_) = NS.sClose s
 
-
--- | Start a TCP server sequentially accepting and using incomming connections.
+-- | Start a TCP server that sequentially accepts and uses each incomming
+-- connection.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -178,19 +176,18 @@ withServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> NS.ServiceName                -- ^Service port to bind to.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
-                                   -- ^Computation to run once an incomming
-                                   --  connection is accepted. Takes the
-                                   --  connection socket and remote end address.
+                                  -- ^Guarded computatation to run once an
+                                  -- incomming connection is accepted. Takes the
+                                  -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
 withServer morph hp port k = do
    withListen morph hp port $ \(lsock,_) -> do
      forever $ accept morph lsock k
 
-
--- | Start a TCP server, accept each incomming connection and use it on a
--- different thread.
+-- | Start a TCP server that accepts incomming connections and uses them
+-- concurrently in different threads.
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
@@ -198,18 +195,18 @@ withForkingServer
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> NS.ServiceName                -- ^Service port to bind to.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                   -- ^Computation to run once an incomming
-                                   --  connection is accepted. Takes the
-                                   --  connection socket and remote end address.
+                                  -- ^Guarded computatation to run in a
+                                  -- different thread once an incomming
+                                  -- connection is accepted. Takes the
+                                  -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
 withForkingServer morph hp port k = do
    withListen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
 
-
--- | Accept an incomming connection and use it.
+-- | Accept a single incomming connection and use it.
 --
 -- The connection socket is closed when done or in case of exceptions.
 accept
@@ -217,16 +214,15 @@ accept
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
-                                   -- ^Computation to run once an incomming
-                                   --  connection is accepted. Takes the
-                                   --  connection socket and remote end address.
+                                  -- ^Guarded computatation to run once an
+                                  -- incomming connection is accepted. Takes the
+                                  -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
 accept morph lsock k = do
     conn@(csock,_) <- P.hoist morph . P.tryIO $ NS.accept lsock
     P.finally morph (NS.sClose csock) (k conn)
 
-
--- | Accept an incomming connection and use it on a different thread.
+-- | Accept a single incomming connection and use it in a different thread.
 --
 -- The connection socket is closed when done or in case of exceptions.
 acceptFork
@@ -234,20 +230,21 @@ acceptFork
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                   -- ^Computatation to run on a different
-                                   --  thread once an incomming connection is
-                                   --  accepted. Takes the connection socket
-                                   --  and remote end address.
+                                  -- ^Guarded computatation to run in a
+                                  -- different thread once an incomming
+                                  -- connection is accepted. Takes the
+                                  -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m ThreadId
 acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
 
-
 --------------------------------------------------------------------------------
 
--- | Bind a listening socket, accept a single connection and send downstream
--- any bytes received from the remote end, by means of 'socketReaderS'.
+-- | Binds a listening socket, accepts a single connection and sends downstream
+-- any bytes received from the remote end.
+--
+-- FIXME this accepts many connnections sequentially, not just one.
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
@@ -263,22 +260,24 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- Using this proxy you can write straightforward code like the following, which
 -- prints whatever is received from a single TCP connection to port 9000:
 --
--- > let session = serveReaderS 4096 "127.0.0.1" "9000" >-> tryK printD
+-- > let session = serveReaderS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 -- > runSafeIO . runProxy . runEitherK $ session
 serveReaderS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> HostPreference     -- ^Preferred host to bind to.
-  -> NS.ServiceName     -- ^Service name (port) to bind to.
+  -> NS.ServiceName     -- ^Service port to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 serveReaderS mmaxwait nbytes hp port () = do
    withServer id hp port $ \(csock,_) -> do
      socketReaderS mmaxwait nbytes csock ()
 
-
 -- | Binds a listening socket, accepts a single connection, sends to the remote
--- end the bytes received from upstream and then forwards such bytes downstream.
+-- end the bytes received from upstream, then forwards such sames bytes
+-- downstream.
+--
+-- FIXME this accepts many connnections sequentially, not just one.
 --
 -- Requests from downstream are forwarded upstream.
 --
@@ -298,7 +297,7 @@ serveWriterD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> HostPreference     -- ^Preferred host to bind to.
-  -> NS.ServiceName     -- ^Service name (port) to bind to.
+  -> NS.ServiceName     -- ^Service port to bind to.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 serveWriterD mmaxwait hp port x = do
    withServer id hp port $ \(csock,_) -> do
@@ -309,8 +308,7 @@ serveWriterD mmaxwait hp port x = do
 -- $socket-proxies
 --
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
--- to send to and receive from the other connection end.
-
+-- to interact with the other connection end.
 
 -- | Socket 'P.Producer' proxy. Receives bytes from the remote end and sends
 -- them downstream.
@@ -340,13 +338,8 @@ socketReaderS (Just maxwait) nbytes sock () = loop where
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
     ex = Timeout $ "recv: " <> show maxwait <> " microseconds."
 
-
 -- | Socket 'P.Server' proxy similar to 'socketReaderS', except each request
 -- from downstream specifies the maximum number of bytes to receive.
---
--- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -403,8 +396,7 @@ socketWriterD (Just maxwait) sock = loop where
 -- compose 'P.tryIO' with their "Control.Proxy.Network.TCP" counterparts, so
 -- that you don't need to do it.
 
-
--- | Attempt to connect to the given host name and service name (port).
+-- | Attempt to connect to the given host name and service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'close' when it's
 -- not needed anymore, otherwise it will remain open.
@@ -417,7 +409,7 @@ socketWriterD (Just maxwait) sock = loop where
 connect
   :: P.Proxy p
   => NS.HostName                   -- ^Server hostname.
-  -> NS.ServiceName                -- ^Server service name (port).
+  -> NS.ServiceName                -- ^Server service port.
   -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
 connect host port = P.tryIO $ T.connect host port
 
@@ -440,7 +432,7 @@ connect host port = P.tryIO $ T.connect host port
 listen
   :: P.Proxy p
   => HostPreference                -- ^Preferred host to bind to.
-  -> NS.ServiceName                -- ^Service name (port) to bind to.
+  -> NS.ServiceName                -- ^Service port to bind to.
   -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
 listen hp port = P.tryIO $ T.listen hp port
 
