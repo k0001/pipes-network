@@ -17,7 +17,7 @@ module Control.Proxy.Safe.Network.TCP (
   serveReaderS,
   serveWriterD,
   -- ** Listening
-  withListen,
+  listen,
   -- ** Accepting
   accept,
   acceptFork,
@@ -147,7 +147,7 @@ connectWriterD mmaxwait hp port x = do
 -- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
 -- performance servers. So, we use the maximum between 'N.maxListenQueue' and
 -- 2048 as the default size of the listening queue.
-withListen
+listen
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
@@ -156,11 +156,11 @@ withListen
                                    -- ^Guarded computation taking the listening
                                    -- socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
-withListen morph hp port = P.bracket morph listen (NS.sClose . fst)
+listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
   where
-    listen = do x@(bsock,_) <- T.bind hp port
-                NS.listen bsock $ max 2048 NS.maxListenQueue
-                return x
+    listen' = do x@(bsock,_) <- T.bind hp port
+                 NS.listen bsock $ max 2048 NS.maxListenQueue
+                 return x
 
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.
@@ -178,7 +178,7 @@ withServer
                                   -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
 withServer morph hp port k = do
-   withListen morph hp port $ \(lsock,_) -> do
+   listen morph hp port $ \(lsock,_) -> do
      forever $ accept morph lsock k
 
 -- | Start a TCP server that accepts incomming connections and uses them
@@ -198,7 +198,7 @@ withForkingServer
                                   -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
 withForkingServer morph hp port k = do
-   withListen morph hp port $ \(lsock,_) -> do
+   listen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
 
 -- | Accept a single incomming connection and use it.
@@ -263,7 +263,7 @@ serveReaderS
   -> NS.ServiceName     -- ^Service port to bind to.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 serveReaderS mmaxwait nbytes hp port () = do
-   withListen id hp port $ \(lsock,_) -> do
+   listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
        socketReaderS mmaxwait nbytes csock ()
 
@@ -292,7 +292,7 @@ serveWriterD
   -> NS.ServiceName     -- ^Service port to bind to.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 serveWriterD mmaxwait hp port x = do
-   withListen id hp port $ \(lsock,_) -> do
+   listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
        socketWriterD mmaxwait csock x
 

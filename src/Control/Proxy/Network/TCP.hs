@@ -15,7 +15,7 @@ module Control.Proxy.Network.TCP (
   withForkingServer,
   withServer,
   -- ** Listening
-  withListen,
+  listen,
   -- ** Accepting
   accept,
   acceptFork,
@@ -93,18 +93,18 @@ withConnect host port = E.bracket (connect host port) (NS.sClose . fst)
 -- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
 -- performance servers. So, we use the maximum between 'N.maxListenQueue' and
 -- 2048 as the default size of the listening queue.
-withListen
+listen
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
                       -- ^Guarded computation taking the listening socket and
                       -- the address it's bound to.
   -> IO r
-withListen hp port = E.bracket listen (NS.sClose . fst)
+listen hp port = E.bracket listen' (NS.sClose . fst)
   where
-    listen = do x@(bsock,_) <- bind hp port
-                NS.listen bsock $ max 2048 NS.maxListenQueue
-                return x
+    listen' = do x@(bsock,_) <- bind hp port
+                 NS.listen bsock $ max 2048 NS.maxListenQueue
+                 return x
 
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.
@@ -120,7 +120,7 @@ withServer
                       -- and remote end address.
   -> IO r
 withServer hp port k = do
-    withListen hp port $ \(lsock,_) -> do
+    listen hp port $ \(lsock,_) -> do
       forever $ accept lsock k
 
 -- | Start a TCP server that accepts incomming connections and uses them
@@ -137,7 +137,7 @@ withForkingServer
                       -- connection socket and remote end address.
   -> IO ()
 withForkingServer hp port k = do
-    withListen hp port $ \(lsock,_) -> do
+    listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
 -- | Accept a single incomming connection and use it.
@@ -325,7 +325,6 @@ bind hp port = do
       NS.setSocketOption sock NS.ReuseAddr 1
       NS.bindSocket sock sockAddr
       return (sock, sockAddr)
-
 
 --------------------------------------------------------------------------------
 
