@@ -74,11 +74,7 @@ withConnect
                       -- ^Guarded computation taking the communication socket
                       -- and the server address.
   -> IO r
-withConnect host port =
-    E.bracket connect' close'
-  where
-    connect' = connect host port
-    close' (s,_) = NS.sClose s
+withConnect host port = E.bracket (connect host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -100,11 +96,7 @@ withListen
                       -- ^Guarded computation taking the listening socket and
                       -- the address it's bound to.
   -> IO r
-withListen hp port =
-    E.bracket bind close'
-  where
-    bind = listen hp port
-    close' (s,_) = NS.sClose s
+withListen hp port = E.bracket (listen hp port) (NS.sClose . fst)
 
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.

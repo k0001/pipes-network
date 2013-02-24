@@ -74,10 +74,7 @@ withConnect
                                    -- address.
   -> P.ExceptionP p a' a b' b m r
 withConnect morph host port =
-    P.bracket morph connect' close'
-  where
-    connect' = T.connect host port
-    close' (s,_) = NS.sClose s
+    P.bracket morph (T.connect host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -156,10 +153,7 @@ withListen
                                    -- socket and the address it's bound to.
   -> P.ExceptionP p a' a b' b m r
 withListen morph hp port =
-    P.bracket morph bind close'
-  where
-    bind = T.listen hp port
-    close' (s,_) = NS.sClose s
+    P.bracket morph (T.listen hp port) (NS.sClose . fst)
 
 -- | Start a TCP server that sequentially accepts and uses each incomming
 -- connection.
