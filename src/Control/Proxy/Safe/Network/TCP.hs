@@ -61,8 +61,8 @@ import           System.Timeout                (timeout)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'T.connect'' and
--- 'NS.sClose' functions instead.
+-- If you would like to close the socket yourself, then use the 'T.connectSock'
+-- and 'NS.sClose' functions instead.
 connect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -74,7 +74,7 @@ connect
                                    -- address.
   -> P.ExceptionP p a' a b' b m r
 connect morph host port =
-    P.bracket morph (T.connect' host port) (NS.sClose . fst)
+    P.bracket morph (T.connectSock host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -158,7 +158,7 @@ listen
   -> P.ExceptionP p a' a b' b m r
 listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
   where
-    listen' = do x@(bsock,_) <- T.bind hp port
+    listen' = do x@(bsock,_) <- T.bindSock hp port
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 

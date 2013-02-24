@@ -33,8 +33,8 @@ module Control.Proxy.Network.TCP (
   nsocketTimeoutS,
   socketTimeoutD,
   -- * Low level support
-  bind,
-  connect',
+  bindSock,
+  connectSock,
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -65,8 +65,8 @@ import           System.Timeout                (timeout)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'connect'' and
--- 'NS.sClose' instead.
+-- If you would like to close the socket yourself, then use the 'connectSock'
+-- and 'NS.sClose' instead.
 connect
   :: NS.HostName      -- ^Server hostname.
   -> NS.ServiceName   -- ^Server service port.
@@ -74,7 +74,7 @@ connect
                       -- ^Guarded computation taking the communication socket
                       -- and the server address.
   -> IO r
-connect host port = E.bracket (connect' host port) (NS.sClose . fst)
+connect host port = E.bracket (connectSock host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -102,7 +102,7 @@ listen
   -> IO r
 listen hp port = E.bracket listen' (NS.sClose . fst)
   where
-    listen' = do x@(bsock,_) <- bind hp port
+    listen' = do x@(bsock,_) <- bindSock hp port
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 
@@ -287,8 +287,8 @@ socketTimeoutD wait sock = loop where
 -- Prefer to use 'connect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage or in case
 -- of exceptions.
-connect' :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
-connect' host port = do
+connectSock :: NS.HostName -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
+connectSock host port = do
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host) (Just port)
     E.bracketOnError (newSocket addr) NS.sClose $ \sock -> do
        let sockAddr = NS.addrAddress addr
@@ -302,8 +302,8 @@ connect' host port = do
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
 -- it's not needed anymore, otherwise it will remain open.
-bind :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
-bind hp port = do
+bindSock :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
+bindSock hp port = do
     addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just port)
     let addrs' = case hp of
           HostIPv4 -> prioritize isIPv4addr addrs
