@@ -35,7 +35,6 @@ module Control.Proxy.Network.TCP (
   -- * Low level support
   listen,
   connect,
-  close,
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -67,7 +66,7 @@ import           System.Timeout                (timeout)
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- If you would like to close the socket yourself, then use the 'connect' and
--- 'close' instead.
+-- 'NS.sClose' instead.
 withConnect
   :: NS.HostName      -- ^Server hostname.
   -> NS.ServiceName   -- ^Server service port.
@@ -93,7 +92,7 @@ withConnect host port =
 -- The listening socket is closed when done or in case of exceptions.
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
--- 'close' instead.
+-- 'NS.sClose' instead.
 withListen
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
@@ -282,8 +281,8 @@ socketWriterTimeoutD maxwait sock = loop where
 
 -- | Connect to the given host name and service port.
 --
--- The obtained 'NS.Socket' should be closed manually using 'close' when it's
--- not needed anymore, otherwise it will remain open.
+-- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
+-- it's not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withConnect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage or in case
@@ -302,8 +301,8 @@ connect host port = do
 -- | Attempt to bind a listening socket on the given host preference and
 -- service port.
 --
--- The obtained 'NS.Socket' should be closed manually using 'close' when it's
--- not needed anymore, otherwise it will remain open.
+-- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
+-- it's not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withListen' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage or in case
@@ -336,11 +335,6 @@ listen hp port = do
       NS.bindSocket sock sockAddr
       NS.listen sock (max 2048 NS.maxListenQueue)
       return (sock, sockAddr)
-
--- | Close the socket. All future operations on the socket object will fail. The
--- remote end will receive no more data (after queued data is flushed).
-close :: NS.Socket -> IO ()
-close = NS.sClose
 
 --------------------------------------------------------------------------------
 

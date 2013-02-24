@@ -36,7 +36,6 @@ module Control.Proxy.Safe.Network.TCP (
   -- $low-level
   listen,
   connect,
-  close,
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -68,7 +67,7 @@ import           System.Timeout                (timeout)
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- If you would like to close the socket yourself, then use the 'connect' and
--- 'close' instead.
+-- 'NS.sClose' instead.
 withConnect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -151,7 +150,7 @@ connectWriterD mmaxwait hp port x = do
 -- The listening socket is closed when done or in case of exceptions.
 --
 -- If you would like to close the socket yourself, then use the 'listen' and
--- 'close' functions instead.
+-- 'NS.sClose' functions instead.
 withListen
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -396,8 +395,8 @@ socketWriterD (Just maxwait) sock = loop where
 
 -- | Attempt to connect to the given host name and service port.
 --
--- The obtained 'NS.Socket' should be closed manually using 'close' when it's
--- not needed anymore, otherwise it will remain open.
+-- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
+-- it's not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withConnect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
@@ -415,8 +414,8 @@ connect host port = P.tryIO $ T.connect host port
 -- | Attempt to bind a listening 'NS.Socket' on the given host preference and
 -- service port.
 --
--- The obtained 'NS.Socket' should be closed manually using 'close' when it's
--- not needed anymore, otherwise it will remain open.
+-- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
+-- it's not needed anymore, otherwise it will remain open.
 --
 -- Prefer to use 'withListen' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage, or in case
@@ -433,10 +432,3 @@ listen
   -> NS.ServiceName                -- ^Service port to bind to.
   -> P.ExceptionP p a' a b' b P.SafeIO (NS.Socket, NS.SockAddr)
 listen hp port = P.tryIO $ T.listen hp port
-
--- | Close the socket. All future operations on the socket object will fail. The
--- remote end will receive no more data (after queued data is flushed).
---
--- > close sock = tryIO $ Control.Proxy.Network.TCP.close sock
-close :: P.Proxy p => NS.Socket -> P.ExceptionP p a' a b' b P.SafeIO ()
-close = P.tryIO . T.close
