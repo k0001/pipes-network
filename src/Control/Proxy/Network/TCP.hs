@@ -115,7 +115,7 @@ withListen hp port =
     close' (s,_) = NS.sClose s
 
 
--- | Start a TCP server, accept an incomming connection and use it.
+-- | Start a TCP server sequentially accepting and using incomming connections.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -128,7 +128,7 @@ withServer
   -> IO r
 withServer hp port k = do
     withListen hp port $ \(lsock,_) -> do
-      accept lsock k
+      forever $ accept lsock k
 
 
 -- | Start a TCP server, accept each incomming connection and use it on a

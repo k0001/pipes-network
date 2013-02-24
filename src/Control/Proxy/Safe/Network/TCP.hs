@@ -170,7 +170,7 @@ withListen morph hp port =
     close' (s,_) = NS.sClose s
 
 
--- | Start a TCP server, accept an incomming connection and use it.
+-- | Start a TCP server sequentially accepting and using incomming connections.
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
@@ -186,7 +186,7 @@ withServer
   -> P.ExceptionP p a' a b' b m r
 withServer morph hp port k = do
    withListen morph hp port $ \(lsock,_) -> do
-     accept morph lsock k
+     forever $ accept morph lsock k
 
 
 -- | Start a TCP server, accept each incomming connection and use it on a
