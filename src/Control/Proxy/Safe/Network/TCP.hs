@@ -11,8 +11,8 @@
 module Control.Proxy.Safe.Network.TCP (
   -- * Server side
   -- $server-side
-  withForkingServer,
-  withServer,
+  serve,
+  serveFork,
   -- ** Quick one-time servers
   serveReaderS,
   serveWriterD,
@@ -167,7 +167,7 @@ listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
-withServer
+serve
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
@@ -177,7 +177,7 @@ withServer
                                   -- incomming connection is accepted. Takes the
                                   -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
-withServer morph hp port k = do
+serve morph hp port k = do
    listen morph hp port $ \(lsock,_) -> do
      forever $ accept morph lsock k
 
@@ -186,7 +186,7 @@ withServer morph hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
-withForkingServer
+serveFork
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> HostPreference                -- ^Preferred host to bind to.
@@ -197,7 +197,7 @@ withForkingServer
                                   -- connection is accepted. Takes the
                                   -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
-withForkingServer morph hp port k = do
+serveFork morph hp port k = do
    listen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
 

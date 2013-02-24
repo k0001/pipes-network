@@ -12,8 +12,8 @@
 module Control.Proxy.Network.TCP (
   -- * Server side
   -- $server-side
-  withForkingServer,
-  withServer,
+  serve,
+  serveFork,
   -- ** Listening
   listen,
   -- ** Accepting
@@ -111,7 +111,7 @@ listen hp port = E.bracket listen' (NS.sClose . fst)
 --
 -- Both the listening and connection socket are closed when done or in case of
 -- exceptions.
-withServer
+serve
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
@@ -119,7 +119,7 @@ withServer
                       -- connection is accepted. Takes the connection socket
                       -- and remote end address.
   -> IO r
-withServer hp port k = do
+serve hp port k = do
     listen hp port $ \(lsock,_) -> do
       forever $ accept lsock k
 
@@ -128,7 +128,7 @@ withServer hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
-withForkingServer
+serveFork
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
@@ -136,7 +136,7 @@ withForkingServer
                       -- once an incomming connection is accepted. Takes the
                       -- connection socket and remote end address.
   -> IO ()
-withForkingServer hp port k = do
+serveFork hp port k = do
     listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
