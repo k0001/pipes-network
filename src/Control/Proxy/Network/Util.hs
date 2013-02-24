@@ -47,10 +47,9 @@ hpHostName _        = Nothing
 
 --------------------------------------------------------------------------------
 
--- | Exception thrown when a timeout has elapsed.
+-- |Exception thrown when a timeout has elapsed.
 data Timeout
-  = Timeout
-    String -- ^ Additional message.
+  = Timeout String -- ^Timeouted with an additional explanatory message.
   deriving (Eq, Show, Typeable)
 
 instance E.Exception Timeout where
