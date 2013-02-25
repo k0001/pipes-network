@@ -1,5 +1,6 @@
--- | This module exports 'P.Proxy's that allow synchronous communication with
--- a remote end using a simple RPC-like interface on their downstream end.
+-- | This module exports 'P.Proxy's that allow implementing synchronous RPC-like
+-- communication with a remote end by using a simple protocol on their
+-- downstream interface.
 --
 -- As opposed to the similar proxies found in "Control.Proxy.Network.TCP.Sync",
 -- these use the exception handling facilities provided by 'P.ExceptionP'.
@@ -18,6 +19,7 @@ module Control.Proxy.Safe.Network.TCP.Sync (
 
 import           Control.Monad
 import qualified Control.Proxy             as P
+import           Control.Proxy.Network.TCP.Sync   (Request(..), Response(..))
 import           Control.Proxy.Network.Util
 import qualified Control.Proxy.Safe        as P
 import qualified Data.ByteString           as B
@@ -26,13 +28,6 @@ import qualified Network.Socket            as NS
 import           Network.Socket.ByteString (recv, sendAll)
 import           System.Timeout            (timeout)
 
--- | A request made to one of 'socketServer' or 'socketProxy'.
-data Request t = Send t | Receive Int
-  deriving (Eq, Read, Show)
-
--- | A response received from one of 'socketServer' or 'socketProxy'.
-data Response = Sent | Received B.ByteString
-  deriving (Eq, Read, Show)
 
 -- | 'P.Server' able to send and receive bytes through a 'NS.Socket'.
 --
