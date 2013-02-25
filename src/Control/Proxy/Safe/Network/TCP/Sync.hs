@@ -11,7 +11,7 @@
 module Control.Proxy.Safe.Network.TCP.Sync (
   -- * Socket proxies
   syncSocketServer,
-  socketProxy,
+  syncSocketProxy,
   -- * Protocol
   Request(..),
   Response(..),
@@ -87,20 +87,20 @@ syncSocketServer (Just wait) sock = loop where
 -- the 'P.ExceptionP' proxy transformer.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-socketProxy
+syncSocketProxy
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Request a'
   -> (P.ExceptionP p) a' B.ByteString (Request a') Response P.SafeIO ()
-socketProxy Nothing sock = loop where
+syncSocketProxy Nothing sock = loop where
     loop (Send a') = do
         P.request a' >>= P.tryIO . sendAll sock
         P.respond Sent >>= loop
     loop (Receive nbytes) = do
         bs <- P.tryIO $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
-socketProxy (Just wait) sock = loop where
+syncSocketProxy (Just wait) sock = loop where
     loop (Send a') = do
         bs <- P.request a'
         m <- P.tryIO . timeout wait $ sendAll sock bs
