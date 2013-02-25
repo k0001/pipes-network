@@ -2,7 +2,7 @@
 -- resources acquired and release outside a 'P.Proxy' pipeline.
 --
 -- Instead, if want to safely acquire and release resources within a 'P.Proxy'
--- pipeline, then you should use the similar functions exported by
+-- pipeline, then you should use the functions exported by
 -- "Control.Proxy.Safe.Network.TCP".
 
 -- Some code in this file was adapted from the @network-conduit@ library by
@@ -65,8 +65,8 @@ import           System.Timeout                (timeout)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If you would like to close the socket yourself, then use the 'connectSock'
--- and 'NS.sClose' instead.
+-- If you prefer to acquire and close the socket yourself, then use
+-- 'connectSock' and the 'NS.sClose' function from "Network.Socket" instead.
 connect
   :: NS.HostName      -- ^Server hostname.
   -> NS.ServiceName   -- ^Server service port.
@@ -87,8 +87,9 @@ connect host port = E.bracket (connectSock host port) (NS.sClose . fst)
 --
 -- The listening socket is closed when done or in case of exceptions.
 --
--- If you would like acquire and close the socket yourself, then use the
--- 'NS.listen' and 'NS.sClose' instead.
+-- If you prefer to acquire and close the socket yourself, then use
+-- 'bindSock' and the 'NS.listen' and 'NS.sClose' functions from
+-- "Network.Socket" instead.
 --
 -- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
 -- performance servers. So, we use the maximum between 'N.maxListenQueue' and
@@ -175,8 +176,7 @@ acceptFork lsock f = do
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
 -- to interact with the other connection end.
 
--- | Socket 'P.Producer' proxy. Receives bytes from the remote end sends them
--- downstream.
+-- | Receives bytes from the remote end sends them downstream.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -191,12 +191,8 @@ socketS nbytes sock () = P.runIdentityP loop where
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
 
--- | Socket 'P.Server' proxy similar to 'socketS', except each request
--- from downstream specifies the maximum number of bytes to receive.
---
--- Less than the specified maximum number of bytes might be received at once.
---
--- If the remote peer closes its side of the connection, this proxy returns.
+-- | Just like 'socketS', except each request from downstream specifies the
+-- maximum number of bytes to receive.
 nsocketS
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
@@ -224,8 +220,8 @@ socketD sock = P.runIdentityK loop where
 
 -- $socket-proxies-timeout
 --
--- These proxies behave like the ones similarly named above, except these
--- support timing out the interaction with the remote end.
+-- These proxies behave like the similarly named ones above, except support for
+-- timing out the interaction with the remote end is added.
 
 -- | Like 'socketS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
@@ -279,10 +275,10 @@ socketTimeoutD wait sock = loop where
 
 --------------------------------------------------------------------------------
 
--- | Obtain a 'NS.Socket' connected to the given host name and TCP service port.
+-- | Obtain a 'NS.Socket' connected to the given host and TCP service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
--- it's not needed anymore, otherwise it will remain open.
+-- it's not needed anymore.
 --
 -- Prefer to use 'connect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage or in case
@@ -301,7 +297,11 @@ connectSock host port = do
 -- | Obtain a 'NS.Socket' bound to the given host name and TCP service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
--- it's not needed anymore, otherwise it will remain open.
+-- it's not needed anymore.
+--
+-- Prefer to use 'listen' if you will be listening on this socket and using it
+-- within a limited scope, and would like it to be closed immediately after its
+-- usage or in case of exceptions.
 bindSock :: HostPreference -> NS.ServiceName -> IO (NS.Socket, NS.SockAddr)
 bindSock hp port = do
     addrs <- NS.getAddrInfo (Just hints) (hpHostName hp) (Just port)
