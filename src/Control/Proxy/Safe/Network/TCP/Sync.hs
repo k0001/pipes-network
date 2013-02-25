@@ -4,25 +4,27 @@
 -- As opposed to the similar proxies found in "Control.Proxy.Network.TCP.Sync",
 -- these use the exception handling facilities provided by 'P.ExceptionP'.
 --
--- You may prefer the more general and efficient proxies from
+-- You may prefer the more general proxies from
 -- "Control.Proxy.Safe.Network.TCP".
 
 module Control.Proxy.Safe.Network.TCP.Sync (
   -- * Socket proxies
   socketServer,
   socketProxy,
-  -- * Protocol types
+  -- * Protocol
   Request(..),
   Response(..),
   ) where
 
 import           Control.Monad
 import qualified Control.Proxy             as P
+import           Control.Proxy.Network.Util
 import qualified Control.Proxy.Safe        as P
 import qualified Data.ByteString           as B
+import           Data.Monoid
 import qualified Network.Socket            as NS
 import           Network.Socket.ByteString (recv, sendAll)
-
+import           System.Timeout            (timeout)
 
 -- | A request made to one of 'socketServer' or 'socketProxy'.
 data Request t = Send t | Receive Int
@@ -31,7 +33,6 @@ data Request t = Send t | Receive Int
 -- | A response received from one of 'socketServer' or 'socketProxy'.
 data Response = Sent | Received B.ByteString
   deriving (Eq, Read, Show)
-
 
 -- | 'P.Server' able to send and receive bytes through a 'NS.Socket'.
 --
@@ -43,20 +44,36 @@ data Response = Sent | Received B.ByteString
 -- bytes as @'Received' bytes@. Less than the specified maximum number of bytes
 -- might be received at once.
 --
+-- If an optional timeout is given and interactions with the remote end
+-- take more time that such timeout, then throw a 'Timeout' exception in
+-- the 'P.ExceptionP' proxy transformer.
+--
 -- If the remote peer closes its side of the connection, this proxy returns.
 socketServer
   :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> NS.Socket          -- ^Connected socket.
   -> Request B.ByteString
   -> P.Server (P.ExceptionP p) (Request B.ByteString) Response P.SafeIO()
-socketServer sock = loop where
+socketServer Nothing sock = loop where
     loop (Send bs) = do
         P.tryIO $ sendAll sock bs
         P.respond Sent >>= loop
-    loop (Receive n) = do
-        bs <- P.tryIO $ recv sock n
+    loop (Receive nbytes) = do
+        bs <- P.tryIO $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
-
+socketServer (Just wait) sock = loop where
+    loop (Send bs) = do
+        m <- P.tryIO . timeout wait $ sendAll sock bs
+        case m of
+          Nothing -> P.throw $ ex "sendAll"
+          Just () -> P.respond Sent >>= loop
+    loop (Receive nbytes) = do
+        mbs <- P.tryIO . timeout wait $ recv sock nbytes
+        case mbs of
+          Nothing -> P.throw $ ex "recv"
+          Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
+    ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
 
 -- | 'P.Proxy' able to send and receive bytes through a 'NS.Socket'.
 --
@@ -70,17 +87,34 @@ socketServer sock = loop where
 -- bytes as @'Received' bytes@. Less than the specified maximum number of bytes
 -- might be received at once.
 --
+-- If an optional timeout is given and interactions with the remote end
+-- take more time that such timeout, then throw a 'Timeout' exception in
+-- the 'P.ExceptionP' proxy transformer.
+--
 -- If the remote peer closes its side of the connection, this proxy returns.
 socketProxy
   :: P.Proxy p
-  => NS.Socket          -- ^Connected socket.
+  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> NS.Socket          -- ^Connected socket.
   -> Request a'
   -> (P.ExceptionP p) a' B.ByteString (Request a') Response P.SafeIO ()
-socketProxy sock = loop where
+socketProxy Nothing sock = loop where
     loop (Send a') = do
         P.request a' >>= P.tryIO . sendAll sock
         P.respond Sent >>= loop
-    loop (Receive n) = do
-        bs <- P.tryIO $ recv sock n
+    loop (Receive nbytes) = do
+        bs <- P.tryIO $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
-
+socketProxy (Just wait) sock = loop where
+    loop (Send a') = do
+        bs <- P.request a'
+        m <- P.tryIO . timeout wait $ sendAll sock bs
+        case m of
+          Nothing -> P.throw $ ex "sendAll"
+          Just () -> P.respond Sent >>= loop
+    loop (Receive nbytes) = do
+        mbs <- P.tryIO . timeout wait $ recv sock nbytes
+        case mbs of
+          Nothing -> P.throw $ ex "recv"
+          Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
+    ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
