@@ -15,12 +15,12 @@ import           Data.String                   (IsString (fromString))
 import           Data.Typeable                 (Typeable)
 import qualified Network.Socket as             NS
 
--- | Which host to bind to.
+-- | Preferred host to bind.
 data HostPreference
   = HostAny          -- ^Any avaiable host.
   | HostIPv4         -- ^Any avaiable IPv4 host.
   | HostIPv6         -- ^Any avaiable IPv6 host.
-  | Host NS.HostName -- ^Prefer an explicit host name.
+  | Host NS.HostName -- ^An explicit host name.
   deriving (Eq, Ord, Show, Read)
 
 
