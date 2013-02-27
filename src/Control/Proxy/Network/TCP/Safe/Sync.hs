@@ -6,9 +6,9 @@
 -- these use the exception handling facilities provided by 'P.ExceptionP'.
 --
 -- You may prefer the more general proxies from
--- "Control.Proxy.Safe.Network.TCP".
+-- "Control.Proxy.Network.TCP.Safe".
 
-module Control.Proxy.Safe.Network.TCP.Sync (
+module Control.Proxy.Network.TCP.Safe.Sync (
   -- * Socket proxies
   syncSocketServer,
   syncSocketProxy,

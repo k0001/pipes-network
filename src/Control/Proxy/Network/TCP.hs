@@ -3,7 +3,7 @@
 --
 -- Instead, if want to safely acquire and release resources within a 'P.Proxy'
 -- pipeline, then you should use the functions exported by
--- "Control.Proxy.Safe.Network.TCP".
+-- "Control.Proxy.Network.TCP.Safe".
 
 -- Some code in this file was adapted from the @network-conduit@ library by
 -- Michael Snoyman. Copyright (c) 2011. See its licensing terms (BSD3) at:

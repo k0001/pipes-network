@@ -8,11 +8,11 @@
 -- pipeline, then you should use the functions exported by
 -- "Control.Proxy.Network.TCP".
 --
--- The module "Control.Proxy.Safe.Network.TCP.Quick" offers simpler
+-- The module "Control.Proxy.Network.TCP.Safe.Quick" offers simpler
 -- solutions to one-time streaming interactions with a remote end that might
 -- readily satisfy your needs.
 
-module Control.Proxy.Safe.Network.TCP (
+module Control.Proxy.Network.TCP.Safe (
   -- * Server side
   -- $server-side
   serve,

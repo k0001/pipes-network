@@ -3,7 +3,7 @@
 -- downstream interface.
 --
 -- As opposed to the similar proxies found in
--- "Control.Proxy.Safe.Network.TCP.Sync", these don't use the exception handling
+-- "Control.Proxy.Network.TCP.Safe.Sync", these don't use the exception handling
 -- facilities provided by 'P.ExceptionP'.
 --
 -- You may prefer the more general and efficient proxies from
