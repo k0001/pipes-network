@@ -40,19 +40,19 @@ module Control.Proxy.Network.TCP (
   Timeout(..)
   ) where
 
-import           Control.Concurrent            (ThreadId, forkIO)
-import qualified Control.Exception             as E
+import           Control.Concurrent             (ThreadId, forkIO)
+import qualified Control.Exception              as E
 import           Control.Monad
 import           Control.Monad.Trans.Class
-import qualified Control.Proxy                 as P
-import qualified Control.Proxy.Trans.Either    as PE
-import           Control.Proxy.Network.Util
-import qualified Data.ByteString               as B
+import qualified Control.Proxy                  as P
+import qualified Control.Proxy.Trans.Either     as PE
+import           Control.Proxy.Network.Internal
+import qualified Data.ByteString                as B
 import           Data.Monoid
-import           Data.List                     (partition)
-import qualified Network.Socket                as NS
-import           Network.Socket.ByteString     (recv, sendAll)
-import           System.Timeout                (timeout)
+import           Data.List                      (partition)
+import qualified Network.Socket                 as NS
+import           Network.Socket.ByteString      (recv, sendAll)
+import           System.Timeout                 (timeout)
 
 --------------------------------------------------------------------------------
 

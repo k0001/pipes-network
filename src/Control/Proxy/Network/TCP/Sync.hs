@@ -25,7 +25,7 @@ module Control.Proxy.Network.TCP.Sync (
 import           Control.Monad
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy                    as P
-import           Control.Proxy.Network.Util
+import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Trans.Either       as PE
 import qualified Data.ByteString                  as B
 import           Data.Monoid

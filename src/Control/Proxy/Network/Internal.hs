@@ -1,10 +1,11 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 -- Some code in this file was adapted from the @network-conduit@ library by
 -- Michael Snoyman. Copyright (c) 2011. See its licensing terms (BSD3) at:
 --   https://github.com/snoyberg/conduit/blob/master/network-conduit/LICENSE
 
-module Control.Proxy.Network.Util (
+module Control.Proxy.Network.Internal (
   HostPreference(..),
   hpHostName,
   Timeout(..)

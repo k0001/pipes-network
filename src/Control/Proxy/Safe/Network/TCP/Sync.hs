@@ -18,15 +18,15 @@ module Control.Proxy.Safe.Network.TCP.Sync (
   ) where
 
 import           Control.Monad
-import qualified Control.Proxy             as P
+import qualified Control.Proxy                    as P
 import           Control.Proxy.Network.TCP.Sync   (Request(..), Response(..))
-import           Control.Proxy.Network.Util
-import qualified Control.Proxy.Safe        as P
-import qualified Data.ByteString           as B
+import           Control.Proxy.Network.Internal
+import qualified Control.Proxy.Safe               as P
+import qualified Data.ByteString                  as B
 import           Data.Monoid
-import qualified Network.Socket            as NS
-import           Network.Socket.ByteString (recv, sendAll)
-import           System.Timeout            (timeout)
+import qualified Network.Socket                   as NS
+import           Network.Socket.ByteString        (recv, sendAll)
+import           System.Timeout                   (timeout)
 
 
 -- | 'P.Server' able to send and receive bytes through a 'NS.Socket'.
