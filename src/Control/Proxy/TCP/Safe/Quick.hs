@@ -2,9 +2,9 @@
 -- interactions with a remote end.
 --
 -- If these proxies don't satisfy your needs, you might need to use the more
--- general features from "Control.Proxy.Network.TCP.Safe".
+-- general features from "Control.Proxy.TCP.Safe".
 
-module Control.Proxy.Network.TCP.Safe.Quick (
+module Control.Proxy.TCP.Safe.Quick (
   -- * Server side
   serveReadS,
   serveWriteD,
@@ -16,7 +16,7 @@ module Control.Proxy.Network.TCP.Safe.Quick (
   Timeout(..)
   ) where
 
-import           Control.Proxy.Network.TCP.Safe
+import           Control.Proxy.TCP.Safe
 import qualified Control.Proxy                   as P
 import qualified Control.Proxy.Safe              as P
 import qualified Network.Socket                  as NS

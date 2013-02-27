@@ -6,13 +6,13 @@
 --
 -- Instead, if you want acquire and release resources outside a 'P.Proxy'
 -- pipeline, then you should use the functions exported by
--- "Control.Proxy.Network.TCP".
+-- "Control.Proxy.TCP".
 --
--- The module "Control.Proxy.Network.TCP.Safe.Quick" offers simpler
+-- The module "Control.Proxy.TCP.Safe.Quick" offers simpler
 -- solutions to one-time streaming interactions with a remote end that might
 -- readily satisfy your needs.
 
-module Control.Proxy.Network.TCP.Safe (
+module Control.Proxy.TCP.Safe (
   -- * Server side
   -- $server-side
   serve,
@@ -40,7 +40,7 @@ import qualified Control.Exception              as E
 import           Control.Monad
 import qualified Control.Proxy                  as P
 import           Control.Proxy.Network.Internal
-import qualified Control.Proxy.Network.TCP      as T
+import qualified Control.Proxy.TCP      as T
 import qualified Control.Proxy.Safe             as P
 import qualified Data.ByteString                as B
 import           Data.Monoid

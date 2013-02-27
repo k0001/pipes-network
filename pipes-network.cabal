@@ -31,9 +31,9 @@ Library
         transformers (>= 0.2 && < 0.4)
     Exposed-Modules:
         Control.Proxy.Network.Internal
-        Control.Proxy.Network.TCP
-        Control.Proxy.Network.TCP.Sync
-        Control.Proxy.Network.TCP.Safe
-        Control.Proxy.Network.TCP.Safe.Quick
-        Control.Proxy.Network.TCP.Safe.Sync
+        Control.Proxy.TCP
+        Control.Proxy.TCP.Sync
+        Control.Proxy.TCP.Safe
+        Control.Proxy.TCP.Safe.Quick
+        Control.Proxy.TCP.Safe.Sync
     ghc-options: -Wall -fno-warn-unused-do-bind

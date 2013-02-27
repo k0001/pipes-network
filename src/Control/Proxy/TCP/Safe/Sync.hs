@@ -2,13 +2,13 @@
 -- communication with a remote end by using a simple protocol on their
 -- downstream interface.
 --
--- As opposed to the similar proxies found in "Control.Proxy.Network.TCP.Sync",
+-- As opposed to the similar proxies found in "Control.Proxy.TCP.Sync",
 -- these use the exception handling facilities provided by 'P.ExceptionP'.
 --
 -- You may prefer the more general proxies from
--- "Control.Proxy.Network.TCP.Safe".
+-- "Control.Proxy.TCP.Safe".
 
-module Control.Proxy.Network.TCP.Safe.Sync (
+module Control.Proxy.TCP.Safe.Sync (
   -- * Socket proxies
   syncSocketServer,
   syncSocketProxy,
@@ -19,7 +19,7 @@ module Control.Proxy.Network.TCP.Safe.Sync (
 
 import           Control.Monad
 import qualified Control.Proxy                    as P
-import           Control.Proxy.Network.TCP.Sync   (Request(..), Response(..))
+import           Control.Proxy.TCP.Sync   (Request(..), Response(..))
 import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString                  as B
