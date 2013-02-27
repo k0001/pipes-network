@@ -34,6 +34,5 @@ Library
         Control.Proxy.TCP
         Control.Proxy.TCP.Sync
         Control.Proxy.TCP.Safe
-        Control.Proxy.TCP.Safe.Quick
         Control.Proxy.TCP.Safe.Sync
     ghc-options: -Wall -fno-warn-unused-do-bind
