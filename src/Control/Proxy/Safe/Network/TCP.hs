@@ -27,9 +27,9 @@ module Control.Proxy.Safe.Network.TCP (
   connect,
   -- * Streaming proxies
   -- $socket-proxies
-  socketS,
-  nsocketS,
-  socketD,
+  socketReadS,
+  nsocketReadS,
+  socketWriteD,
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -195,17 +195,17 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-socketS
+socketReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-socketS Nothing nbytes sock () = loop where
+socketReadS Nothing nbytes sock () = loop where
     loop = do
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
-socketS (Just wait) nbytes sock () = loop where
+socketReadS (Just wait) nbytes sock () = loop where
     loop = do
       mbs <- P.tryIO . timeout wait $ recv sock nbytes
       case mbs of
@@ -213,18 +213,18 @@ socketS (Just wait) nbytes sock () = loop where
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
--- | Just like 'socketS', except each request from downstream specifies the
+-- | Just like 'socketReadS', except each request from downstream specifies the
 -- maximum number of bytes to receive.
-nsocketS
+nsocketReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Int -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
-nsocketS Nothing sock = loop where
+nsocketReadS Nothing sock = loop where
     loop nbytes = do
       bs <- P.tryIO $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
-nsocketS (Just wait) sock = loop where
+nsocketReadS (Just wait) sock = loop where
     loop nbytes = do
       mbs <- P.tryIO . timeout wait $ recv sock nbytes
       case mbs of
@@ -240,17 +240,17 @@ nsocketS (Just wait) sock = loop where
 -- 'P.ExceptionP' proxy transformer.
 --
 -- Requests from downstream are forwarded upstream.
-socketD
+socketWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
-socketD Nothing sock = loop where
+socketWriteD Nothing sock = loop where
     loop x = do
       a <- P.request x
       P.tryIO $ sendAll sock a
       P.respond a >>= loop
-socketD (Just wait) sock = loop where
+socketWriteD (Just wait) sock = loop where
     loop x = do
       a <- P.request x
       m <- P.tryIO . timeout wait $ sendAll sock a

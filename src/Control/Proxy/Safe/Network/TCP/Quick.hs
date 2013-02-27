@@ -6,11 +6,11 @@
 
 module Control.Proxy.Safe.Network.TCP.Quick (
   -- * Server side
-  serveS,
-  serveD,
+  serveReadS,
+  serveWriteD,
   -- * Client side
-  connectS,
-  connectD,
+  connectReadS,
+  connectWriteD,
   -- * Exports
   HostPreference(..),
   Timeout(..)
@@ -42,18 +42,18 @@ import qualified Data.ByteString                 as B
 -- prints whatever is received from a single TCP connection to port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeIO . runProxy . runEitherK $ serveS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
-serveS
+-- >>> runSafeIO . runProxy . runEitherK $ serveReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
+serveReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> HostPreference     -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-serveS mwait nbytes hp port () = do
+serveReadS mwait nbytes hp port () = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
-       socketS mwait nbytes csock ()
+       socketReadS mwait nbytes csock ()
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream, then forwards such sames bytes
@@ -72,17 +72,17 @@ serveS mwait nbytes hp port () = do
 -- greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> serveD Nothing "127.0.0.1" "9000"
-serveD
+-- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> serveWriteD Nothing "127.0.0.1" "9000"
+serveWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> HostPreference     -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-serveD mwait hp port x = do
+serveWriteD mwait hp port x = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
-       socketD mwait csock x
+       socketWriteD mwait csock x
 
 -- | Connect to a TCP server and send downstream the bytes received from the
 -- remote end.
@@ -97,17 +97,17 @@ serveD mwait hp port x = do
 -- prints whatever is received from a single TCP connection to a given server
 -- listening locally on port 9000:
 --
--- >>> runSafeIO . runProxy . runEitherK $ connectS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
-connectS
+-- >>> runSafeIO . runProxy . runEitherK $ connectReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
+connectReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
-connectS mwait nbytes host port () = do
+connectReadS mwait nbytes host port () = do
    connect id host port $ \(csock,_) -> do
-     socketS mwait nbytes csock ()
+     socketReadS mwait nbytes csock ()
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream, then forwards such same bytes downstream.
@@ -124,13 +124,13 @@ connectS mwait nbytes host port () = do
 -- greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> connectD Nothing "127.0.0.1" "9000"
-connectD
+-- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> connectWriteD Nothing "127.0.0.1" "9000"
+connectWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
-connectD mwait hp port x = do
+connectWriteD mwait hp port x = do
    connect id hp port $ \(csock,_) ->
-     socketD mwait csock x
+     socketWriteD mwait csock x

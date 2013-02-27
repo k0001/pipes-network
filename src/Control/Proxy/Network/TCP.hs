@@ -24,14 +24,14 @@ module Control.Proxy.Network.TCP (
   connect,
   -- * Socket proxies
   -- $socket-proxies
-  socketS,
-  nsocketS,
-  socketD,
+  socketReadS,
+  nsocketReadS,
+  socketWriteD,
   -- ** Timeouts
   -- $socket-proxies-timeout
-  socketTimeoutS,
-  nsocketTimeoutS,
-  socketTimeoutD,
+  socketReadTimeoutS,
+  nsocketReadTimeoutS,
+  socketWriteTimeoutD,
   -- * Low level support
   bindSock,
   connectSock,
@@ -181,23 +181,23 @@ acceptFork lsock f = do
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-socketS
+socketReadS
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer p B.ByteString IO ()
-socketS nbytes sock () = P.runIdentityP loop where
+socketReadS nbytes sock () = P.runIdentityP loop where
     loop = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
 
--- | Just like 'socketS', except each request from downstream specifies the
+-- | Just like 'socketReadS', except each request from downstream specifies the
 -- maximum number of bytes to receive.
-nsocketS
+nsocketReadS
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> Int -> P.Server p Int B.ByteString IO ()
-nsocketS sock = P.runIdentityK loop where
+nsocketReadS sock = P.runIdentityK loop where
     loop nbytes = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
@@ -206,11 +206,11 @@ nsocketS sock = P.runIdentityK loop where
 -- such same bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
-socketD
+socketWriteD
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> x -> p x B.ByteString x B.ByteString IO r
-socketD sock = P.runIdentityK loop where
+socketWriteD sock = P.runIdentityK loop where
     loop x = do
       a <- P.request x
       lift $ sendAll sock a
@@ -223,16 +223,16 @@ socketD sock = P.runIdentityK loop where
 -- These proxies behave like the similarly named ones above, except support for
 -- timing out the interaction with the remote end is added.
 
--- | Like 'socketS', except it throws a 'Timeout' exception in the
+-- | Like 'socketReadS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
 -- more time than specified.
-socketTimeoutS
+socketReadTimeoutS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (PE.EitherP Timeout p) B.ByteString IO ()
-socketTimeoutS wait nbytes sock () = loop where
+socketReadTimeoutS wait nbytes sock () = loop where
     loop = do
       mbs <- lift . timeout wait $ recv sock nbytes
       case mbs of
@@ -240,15 +240,15 @@ socketTimeoutS wait nbytes sock () = loop where
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
--- | Like 'nsocketS', except it throws a 'Timeout' exception in the
+-- | Like 'nsocketReadS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
 -- more time than specified.
-nsocketTimeoutS
+nsocketReadTimeoutS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Int -> P.Server (PE.EitherP Timeout p) Int B.ByteString IO ()
-nsocketTimeoutS wait sock = loop where
+nsocketReadTimeoutS wait sock = loop where
     loop nbytes = do
       mbs <- lift . timeout wait $ recv sock nbytes
       case mbs of
@@ -256,15 +256,15 @@ nsocketTimeoutS wait sock = loop where
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
 
--- | Like 'socketD', except it throws a 'Timeout' exception in the
+-- | Like 'socketWriteD', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
 -- more time than specified.
-socketTimeoutD
+socketWriteTimeoutD
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO r
-socketTimeoutD wait sock = loop where
+socketWriteTimeoutD wait sock = loop where
     loop x = do
       a <- P.request x
       mbs <- lift . timeout wait $ sendAll sock a
