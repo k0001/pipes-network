@@ -19,16 +19,18 @@ module Control.Proxy.TCP (
   -- ** Accepting
   accept,
   acceptFork,
+
   -- * Client side
   -- $client-side
   connect,
-  -- * Socket proxies
-  -- $socket-proxies
+
+  -- * Socket streams
+  -- $socket-streaming
   socketReadS,
   nsocketReadS,
   socketWriteD,
   -- ** Timeouts
-  -- $socket-proxies-timeout
+  -- $socket-streaming-timeout
   socketReadTimeoutS,
   nsocketReadTimeoutS,
   socketWriteTimeoutD,
@@ -60,6 +62,14 @@ import           System.Timeout                 (timeout)
 --
 -- The following functions allow you to obtain and use 'NS.Socket's useful to
 -- the client side of a TCP connection.
+--
+-- Here's how you could run a TCP client:
+--
+-- > connect "www.example.org" "80" $ \(connectionSocket, remoteAddr) -> do
+-- >   putStrLn $ "Connection established to " ++ show remoteAddr
+-- >   -- now you may use connectionSocket as you please within this scope,
+-- >   -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
+-- >   -- proxies explained below.
 
 -- | Connect to a TCP server and use the connection.
 --
@@ -171,10 +181,10 @@ acceptFork lsock f = do
 
 --------------------------------------------------------------------------------
 
--- $socket-proxies
+-- $socket-streaming
 --
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
--- to interact with the other connection end.
+-- to interact with the other connection end using streams.
 
 -- | Receives bytes from the remote end sends them downstream.
 --
@@ -218,7 +228,7 @@ socketWriteD sock = P.runIdentityK loop where
 
 --------------------------------------------------------------------------------
 
--- $socket-proxies-timeout
+-- $socket-streaming-timeout
 --
 -- These proxies behave like the similarly named ones above, except support for
 -- timing out the interaction with the remote end is added.

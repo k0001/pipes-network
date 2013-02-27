@@ -61,6 +61,17 @@ import           System.Timeout                 (timeout)
 --
 -- The following functions allow you to obtain and use 'NS.Socket's useful to
 -- the client side of a TCP connection.
+--
+-- Here's how you could run a TCP client:
+--
+-- > connect id "www.example.org" "80" $ \(connectionSocket, remoteAddr) -> do
+-- >   tryIO . putStrLn $ "Connection established to " ++ show remoteAddr
+-- >   -- now you may use connectionSocket as you please within this scope,
+-- >   -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
+-- >   -- proxies explained below.
+--
+-- You might instead prefer the simpler but less general solutions offered by
+-- 'connectReadS' and 'connectWriteD', so check those too.
 
 -- | Connect to a TCP server and use the connection.
 --
