@@ -92,6 +92,22 @@ connect host port = E.bracket (connectSock host port) (NS.sClose . fst)
 --
 -- The following functions allow you to obtain and use 'NS.Socket's useful to
 -- the server side of a TCP connection.
+--
+-- Here's how you could run a TCP server that handles in different threads each
+-- incoming connection to port 80 on any available IPv6 address:
+--
+-- > listen HostIPv6 "80" $ \(listeningSocket, listeningAddr) -> do
+-- >   putStrLn $ "Listening for incoming connections in " ++ show listeningAddr
+-- >   forever . acceptFork listeningSocket $ \(connectionSocket, remoteAddr) -> do
+-- >     putStrLn $ "Connection established from " ++ show remoteAddr
+-- >     -- now you may use connectionSocket as you please within this scope,
+-- >     -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
+-- >     -- proxies explained below.
+--
+-- If you keep reading you'll discover there are different ways to achieve
+-- the same, some ways more general than others. The above one was just an
+-- example using a pretty general approach, you are encouraged to use simpler
+-- approaches such as 'serve' if those suit your needs.
 
 -- | Bind a TCP listening socket and use it.
 --
