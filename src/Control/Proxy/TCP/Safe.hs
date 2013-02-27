@@ -1,10 +1,10 @@
 {-# LANGUAGE Rank2Types #-}
 
--- | This module exports functions that allow you safely use 'NS.Socket'
+-- | This module exports functions that allow you to safely use 'NS.Socket'
 -- resources acquired and release within a 'P.Proxy' pipeline, using the
 -- facilities provided by 'P.ExceptionP' from the @pipes-safe@ library.
 --
--- Instead, if you want acquire and release resources outside a 'P.Proxy'
+-- Instead, if you want to acquire and release resources outside a 'P.Proxy'
 -- pipeline, then you should use the functions exported by
 -- "Control.Proxy.TCP".
 
@@ -200,7 +200,7 @@ listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 
--- | Start a TCP server that sequentially accepts and uses each incomming
+-- | Start a TCP server that sequentially accepts and uses each incoming
 -- connection.
 --
 -- Both the listening and connection sockets are closed when done or in case of
@@ -211,7 +211,7 @@ serve
   -> HostPreference                -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
-                                   -- ^Computation to run once an incomming
+                                   -- ^Computation to run once an incoming
                                    -- connection is accepted. Takes the
                                    -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
@@ -219,7 +219,7 @@ serve morph hp port k = do
    listen morph hp port $ \(lsock,_) -> do
      forever $ accept morph lsock k
 
--- | Start a TCP server that accepts incomming connections and uses them
+-- | Start a TCP server that accepts incoming connections and uses them
 -- concurrently in different threads.
 --
 -- The listening and connection sockets are closed when done or in case of
@@ -231,7 +231,7 @@ serveFork
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
                                    -- ^Computation to run in a different thread
-                                   -- once an incomming connection is accepted.
+                                   -- once an incoming connection is accepted.
                                    -- Takes the connection socket and remote end
                                    -- address.
   -> P.ExceptionP p a' a b' b m r
@@ -239,7 +239,7 @@ serveFork morph hp port k = do
    listen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
 
--- | Accept a single incomming connection and use it.
+-- | Accept a single incoming connection and use it.
 --
 -- The connection socket is closed when done or in case of exceptions.
 accept
@@ -247,7 +247,7 @@ accept
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
-                                   -- ^Computation to run once an incomming
+                                   -- ^Computation to run once an incoming
                                    -- connection is accepted. Takes the
                                    -- connection socket and remote end address.
   -> P.ExceptionP p a' a b' b m r
@@ -255,7 +255,7 @@ accept morph lsock k = do
     conn@(csock,_) <- P.hoist morph . P.tryIO $ NS.accept lsock
     P.finally morph (NS.sClose csock) (k conn)
 
--- | Accept a single incomming connection and use it in a different thread.
+-- | Accept a single incoming connection and use it in a different thread.
 --
 -- The connection socket is closed when done or in case of exceptions.
 acceptFork
@@ -264,7 +264,7 @@ acceptFork
   -> NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
                                   -- ^Computation to run in a different thread
-                                  -- once an incomming connection is accepted.
+                                  -- once an incoming connection is accepted.
                                   -- Takes the connection socket and remote end
                                   -- address.
   -> P.ExceptionP p a' a b' b m ThreadId

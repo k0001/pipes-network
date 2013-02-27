@@ -1,4 +1,4 @@
--- | This module exports functions that allow you safely use 'NS.Socket'
+-- | This module exports functions that allow you to safely use 'NS.Socket'
 -- resources acquired and release outside a 'P.Proxy' pipeline.
 --
 -- Instead, if want to safely acquire and release resources within a 'P.Proxy'
@@ -133,7 +133,7 @@ listen hp port = E.bracket listen' (NS.sClose . fst)
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 
--- | Start a TCP server that sequentially accepts and uses each incomming
+-- | Start a TCP server that sequentially accepts and uses each incoming
 -- connection.
 --
 -- Both the listening and connection sockets are closed when done or in case of
@@ -142,7 +142,7 @@ serve
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO r)
-                      -- ^Computation to run once an incomming
+                      -- ^Computation to run once an incoming
                       -- connection is accepted. Takes the connection socket
                       -- and remote end address.
   -> IO r
@@ -150,7 +150,7 @@ serve hp port k = do
     listen hp port $ \(lsock,_) -> do
       forever $ accept lsock k
 
--- | Start a TCP server that accepts incomming connections and uses them
+-- | Start a TCP server that accepts incoming connections and uses them
 -- concurrently in different threads.
 --
 -- The listening and connection sockets are closed when done or in case of
@@ -160,20 +160,20 @@ serveFork
   -> NS.ServiceName   -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
                       -- ^Computation to run in a different thread
-                      -- once an incomming connection is accepted. Takes the
+                      -- once an incoming connection is accepted. Takes the
                       -- connection socket and remote end address.
   -> IO ()
 serveFork hp port k = do
     listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
--- | Accept a single incomming connection and use it.
+-- | Accept a single incoming connection and use it.
 --
 -- The connection socket is closed when done or in case of exceptions.
 accept
   :: NS.Socket        -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO b)
-                      -- ^Computation to run once an incomming
+                      -- ^Computation to run once an incoming
                       -- connection is accepted. Takes the connection socket
                       -- and remote end address.
   -> IO b
@@ -181,14 +181,14 @@ accept lsock k = do
     conn@(csock,_) <- NS.accept lsock
     E.finally (k conn) (NS.sClose csock)
 
--- | Accept a single incomming connection and use it in a different thread.
+-- | Accept a single incoming connection and use it in a different thread.
 --
 -- The connection socket is closed when done or in case of exceptions.
 acceptFork
   :: NS.Socket        -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
                       -- ^Computation to run in a different thread
-                      -- once an incomming connection is accepted. Takes the
+                      -- once an incoming connection is accepted. Takes the
                       -- connection socket and remote end address.
   -> IO ThreadId
 acceptFork lsock f = do
@@ -304,7 +304,8 @@ socketWriteTimeoutD wait sock = loop where
 -- | Obtain a 'NS.Socket' connected to the given host and TCP service port.
 --
 -- The obtained 'NS.Socket' should be closed manually using 'NS.sClose' when
--- it's not needed anymore.
+-- it's not needed anymore, otherwise you risk having the socket open for much
+-- longer than needed.
 --
 -- Prefer to use 'connect' if you will be using the socket within a limited
 -- scope and would like it to be closed immediately after its usage or in case
