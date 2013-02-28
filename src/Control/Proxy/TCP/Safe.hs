@@ -254,6 +254,7 @@ accept
 accept morph lsock k = do
     conn@(csock,_) <- P.hoist morph . P.tryIO $ NS.accept lsock
     P.finally morph (NS.sClose csock) (k conn)
+{-# INLINABLE accept #-}
 
 -- | Accept a single incoming connection and use it in a different thread.
 --
@@ -271,6 +272,7 @@ acceptFork
 acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
+{-# INLINABLE acceptFork #-}
 
 --------------------------------------------------------------------------------
 
@@ -373,6 +375,7 @@ socketReadS (Just wait) nbytes sock () = loop where
         Nothing -> P.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
+{-# INLINABLE socketReadS #-}
 
 -- | Just like 'socketReadS', except each request from downstream specifies the
 -- maximum number of bytes to receive.
@@ -392,6 +395,7 @@ nsocketReadS (Just wait) sock = loop where
         Nothing -> P.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
+{-# INLINABLE nsocketReadS #-}
 
 -- | Sends to the remote end the bytes received from upstream, then forwards
 -- such same bytes downstream.
@@ -419,6 +423,7 @@ socketWriteD (Just wait) sock = loop where
         Nothing -> P.throw ex
         Just () -> P.respond a >>= loop
     ex = Timeout $ "sendAll: " <> show wait <> " microseconds."
+{-# INLINABLE socketWriteD #-}
 
 
 

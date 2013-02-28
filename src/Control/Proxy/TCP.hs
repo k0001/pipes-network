@@ -180,6 +180,7 @@ accept
 accept lsock k = do
     conn@(csock,_) <- NS.accept lsock
     E.finally (k conn) (NS.sClose csock)
+{-# INLINABLE accept #-}
 
 -- | Accept a single incoming connection and use it in a different thread.
 --
@@ -194,6 +195,7 @@ acceptFork
 acceptFork lsock f = do
     client@(csock,_) <- NS.accept lsock
     forkIO $ E.finally (f client) (NS.sClose csock)
+{-# INLINABLE acceptFork #-}
 
 --------------------------------------------------------------------------------
 
@@ -216,6 +218,7 @@ socketReadS nbytes sock () = P.runIdentityP loop where
     loop = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >> loop
+{-# INLINABLE socketReadS #-}
 
 -- | Just like 'socketReadS', except each request from downstream specifies the
 -- maximum number of bytes to receive.
@@ -227,6 +230,7 @@ nsocketReadS sock = P.runIdentityK loop where
     loop nbytes = do
       bs <- lift $ recv sock nbytes
       unless (B.null bs) $ P.respond bs >>= loop
+{-# INLINABLE nsocketReadS #-}
 
 -- | Sends to the remote end the bytes received from upstream, then forwards
 -- such same bytes downstream.
@@ -241,6 +245,7 @@ socketWriteD sock = P.runIdentityK loop where
       a <- P.request x
       lift $ sendAll sock a
       P.respond a >>= loop
+{-# INLINABLE socketWriteD #-}
 
 --------------------------------------------------------------------------------
 
@@ -265,6 +270,7 @@ socketReadTimeoutS wait nbytes sock () = loop where
         Nothing -> PE.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
+{-# INLINABLE socketReadTimeoutS #-}
 
 -- | Like 'nsocketReadS', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
@@ -281,6 +287,7 @@ nsocketReadTimeoutS wait sock = loop where
         Nothing -> PE.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
+{-# INLINABLE nsocketReadTimeoutS #-}
 
 -- | Like 'socketWriteD', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
@@ -298,6 +305,7 @@ socketWriteTimeoutD wait sock = loop where
         Nothing -> PE.throw ex
         Just () -> P.respond a >>= loop
     ex = Timeout $ "recv: " <> show wait <> " microseconds."
+{-# INLINABLE socketWriteTimeoutD #-}
 
 --------------------------------------------------------------------------------
 
