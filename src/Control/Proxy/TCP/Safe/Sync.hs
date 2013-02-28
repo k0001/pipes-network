@@ -10,8 +10,8 @@
 
 module Control.Proxy.TCP.Safe.Sync (
   -- * Socket proxies
-  syncSocketServer,
-  syncSocketProxy,
+  socketSyncServer,
+  socketSyncProxy,
   -- * Protocol
   Request(..),
   Response(..),
@@ -44,20 +44,20 @@ import           System.Timeout                   (timeout)
 -- the 'P.ExceptionP' proxy transformer.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-syncSocketServer
+socketSyncServer
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Request B.ByteString
   -> P.Server (P.ExceptionP p) (Request B.ByteString) Response P.SafeIO()
-syncSocketServer Nothing sock = loop where
+socketSyncServer Nothing sock = loop where
     loop (Send bs) = do
         P.tryIO $ sendAll sock bs
         P.respond Sent >>= loop
     loop (Receive nbytes) = do
         bs <- P.tryIO $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
-syncSocketServer (Just wait) sock = loop where
+socketSyncServer (Just wait) sock = loop where
     loop (Send bs) = do
         m <- P.tryIO . timeout wait $ sendAll sock bs
         case m of
@@ -87,20 +87,20 @@ syncSocketServer (Just wait) sock = loop where
 -- the 'P.ExceptionP' proxy transformer.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-syncSocketProxy
+socketSyncProxy
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Request a'
   -> (P.ExceptionP p) a' B.ByteString (Request a') Response P.SafeIO ()
-syncSocketProxy Nothing sock = loop where
+socketSyncProxy Nothing sock = loop where
     loop (Send a') = do
         P.request a' >>= P.tryIO . sendAll sock
         P.respond Sent >>= loop
     loop (Receive nbytes) = do
         bs <- P.tryIO $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
-syncSocketProxy (Just wait) sock = loop where
+socketSyncProxy (Just wait) sock = loop where
     loop (Send a') = do
         bs <- P.request a'
         m <- P.tryIO . timeout wait $ sendAll sock bs

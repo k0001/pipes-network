@@ -11,12 +11,12 @@
 
 module Control.Proxy.TCP.Sync (
   -- * Socket proxies
-  syncSocketServer,
-  syncSocketProxy,
+  socketSyncServer,
+  socketSyncProxy,
   -- ** Timeouts
   -- $timeouts
-  syncSocketServerTimeout,
-  syncSocketProxyTimeout,
+  socketSyncServerTimeout,
+  socketSyncProxyTimeout,
   -- * Protocol types
   Request(..),
   Response(..),
@@ -34,11 +34,11 @@ import           Network.Socket.ByteString        (recv, sendAll)
 import           System.Timeout                   (timeout)
 
 
--- | A request made to one of 'syncSocketServer' or 'syncSocketProxy'.
+-- | A request made to one of 'socketSyncServer' or 'socketSyncProxy'.
 data Request t = Send t | Receive Int
   deriving (Eq, Read, Show)
 
--- | A response received from one of 'syncSocketServer' or 'syncSocketProxy'.
+-- | A response received from one of 'socketSyncServer' or 'socketSyncProxy'.
 data Response = Sent | Received B.ByteString
   deriving (Eq, Read, Show)
 
@@ -53,12 +53,12 @@ data Response = Sent | Received B.ByteString
 -- might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-syncSocketServer
+socketSyncServer
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> Request B.ByteString
   -> P.Server p (Request B.ByteString) Response IO ()
-syncSocketServer sock = P.runIdentityK loop where
+socketSyncServer sock = P.runIdentityK loop where
     loop (Send bs) = do
         lift $ sendAll sock bs
         P.respond Sent >>= loop
@@ -80,12 +80,12 @@ syncSocketServer sock = P.runIdentityK loop where
 -- might be received at once.
 --
 -- If the remote peer closes its side of the connection, this proxy returns.
-syncSocketProxy
+socketSyncProxy
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
   -> Request a'
   -> p a' B.ByteString (Request a') Response IO ()
-syncSocketProxy sock = P.runIdentityK loop where
+socketSyncProxy sock = P.runIdentityK loop where
     loop (Send a') = do
         P.request a' >>= lift . sendAll sock
         P.respond Sent >>= loop
@@ -100,16 +100,16 @@ syncSocketProxy sock = P.runIdentityK loop where
 -- These proxies behave like the similarly named ones above, except support for
 -- timing out the interaction with the remote end is added.
 
--- | Like 'syncSocketServer', except it throws a 'Timeout' exception in the
+-- | Like 'socketSyncServer', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if interacting with the remote end takes
 -- more time than specified.
-syncSocketServerTimeout
+socketSyncServerTimeout
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Request B.ByteString
   -> P.Server (PE.EitherP Timeout p) (Request B.ByteString) Response IO ()
-syncSocketServerTimeout wait sock = loop where
+socketSyncServerTimeout wait sock = loop where
     loop (Send bs) = do
         m <- lift . timeout wait $ sendAll sock bs
         case m of
@@ -122,16 +122,16 @@ syncSocketServerTimeout wait sock = loop where
           Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
     ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
 
--- | Like 'syncSocketProxy', except it throws a 'Timeout' exception in the
+-- | Like 'socketSyncProxy', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if interacting with the remote end takes
 -- more time than specified.
-syncSocketProxyTimeout
+socketSyncProxyTimeout
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Request a'
   -> (PE.EitherP Timeout p) a' B.ByteString (Request a') Response IO ()
-syncSocketProxyTimeout wait sock = loop where
+socketSyncProxyTimeout wait sock = loop where
     loop (Send a') = do
         bs <- P.request a'
         m <- lift . timeout wait $ sendAll sock bs
