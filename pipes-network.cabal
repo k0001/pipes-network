@@ -12,9 +12,20 @@ bug-reports: https://github.com/k0001/pipes-network
 category: Control, Pipes, Network
 build-type: Simple
 synopsis: Use network sockets together with the pipes library.
-description: Use network sockets together with the pipes library.
 cabal-version: >=1.8
 extra-source-files: README.md AUTHORS
+description:
+  Use network sockets together with the @pipes@ library.
+  .
+  This package is organized using the following namespaces:
+  .
+  * "Control.Proxy.TCP" exports @pipes@ proxies and functions to deal with TCP
+  connections. Such proxies don't acquire nor release new resources within a
+  proxy pipeline.
+  .
+  * "Control.Proxy.TCP.Safe" exports @pipes-safe@ proxies and functions to deal
+  with TCP connections. Such proxies may safely acquire and release resources
+  within a pipeline, using the facilities provided by the @pipes-safe@ package.
 
 source-repository head
     type: git
