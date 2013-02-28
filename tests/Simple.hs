@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-unused-do-bind -fno-warn-missing-signatures #-}
 
 module Main where
 
-import           Control.Concurrent             (forkIO)
+import           Control.Concurrent             (forkIO, threadDelay)
 import           Control.Concurrent.MVar        (newEmptyMVar, putMVar, takeMVar)
 import qualified Control.Exception       as E
 import qualified Data.ByteString.Char8   as B
@@ -24,44 +25,44 @@ msg1b  = B.concat msg1 :: B.ByteString
 
 serveWriteToConnectWrite :: Assertion
 serveWriteToConnectWrite = do
-    mv1 <- newEmptyMVar
-    let pserver =
-          P.fromListS msg1
-          >-> \b' -> do P.tryIO $ putMVar mv1 ()
-                        T'.serveWriteD Nothing host1p port1 b'
-        pclient =
-          P.raiseK (T'.connectReadS Nothing 4096 host1 port1)
-          >-> \b' -> do P.raise . P.tryIO $ takeMVar mv1
-                        P.toListD b'
-    forkIO . P.runSafeIO . P.runProxy .P.runEitherK $ pserver
-    (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ pclient
-    case eex of
-      Left ex  -> E.throw ex
-      Right () -> B.concat out @=? msg1b
+    forkIO server
+    -- we sleep half second hoping that the server has started.
+    threadDelay 500000
+    client
+  where
+    server = do
+      let p = P.fromListS msg1 >-> T'.serveWriteD Nothing host1p port1
+      P.runSafeIO . P.runProxy .P.runEitherK $ p
+    client = do
+      let p = P.raiseK (T'.connectReadS Nothing 4096 host1 port1) >-> P.toListD
+      (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ p
+      case eex of
+        Left ex  -> E.throw ex
+        Right () -> B.concat out @=? msg1b
 
 connectWriteToServeRead :: Assertion
 connectWriteToServeRead = do
-    mv1 <- newEmptyMVar
-    let pserver =
-          P.raiseK (T'.serveReadS Nothing 4096 host1p port1)
-          >-> \b' -> do P.raise . P.tryIO $ putMVar mv1 ()
-                        P.toListD b'
-        pclient =
-          P.fromListS msg1
-          >-> \b' -> do P.tryIO $ takeMVar mv1
-                        T'.connectWriteD Nothing host1 port1 b'
-    forkIO . P.runSafeIO . P.runProxy .P.runEitherK $ pclient
-    (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ pserver
-    case eex of
-      Left ex  -> E.throw ex
-      Right () -> B.concat out @=? msg1b
+    forkIO server
+    -- we sleep half second hoping that the server has started.
+    threadDelay 500000
+    client
+  where
+    client = do
+       let p = P.fromListS msg1 >-> T'.connectWriteD Nothing host1 port1
+       P.runSafeIO . P.runProxy .P.runEitherK $ p
+    server = do
+      let p = P.raiseK (T'.serveReadS Nothing 4096 host1p port1) >-> P.toListD
+      (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ p
+      case eex of
+        Left ex  -> E.throw ex
+        Right () -> B.concat out @=? msg1b
 
 tests :: [Test]
 tests =
   [ testGroup "Safe TCP"
     [ testGroup "{serve,connect}{WriteD,ReadS}"
       [ testCase "serveWriteToConnectWrite" serveWriteToConnectWrite
-      , testCase "connectWriteToServeRead" connectWriteToServeRead
+      , testCase "connectWriteToServeRead"  connectWriteToServeRead
       ]
     ]
   ]
