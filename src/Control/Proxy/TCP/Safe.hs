@@ -159,10 +159,10 @@ connectWriteD mwait hp port x = do
 -- the server side of a TCP connection.
 --
 -- Here's how you could run a TCP server that handles in different threads each
--- incoming connection to port 80 on any available IPv6 address:
+-- incoming connection to port @8000@ at address @127.0.0.1@:
 --
--- > listen id HostIPv6 "80" $ \(listeningSocket, listeningAddr) -> do
--- >   tryIO . putStrLn $ "Listening for incoming connections in " ++ show listeningAddr
+-- > listen id (Host "127.0.0.1") "8000" $ \(listeningSocket, listeningAddr) -> do
+-- >   tryIO . putStrLn $ "Listening for incoming connections at " ++ show listeningAddr
 -- >   forever . acceptFork id listeningSocket $ \(connectionSocket, remoteAddr) -> do
 -- >     putStrLn $ "Connection established from " ++ show remoteAddr
 -- >     -- now you may use connectionSocket as you please within this scope,

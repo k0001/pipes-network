@@ -94,10 +94,10 @@ connect host port = E.bracket (connectSock host port) (NS.sClose . fst)
 -- the server side of a TCP connection.
 --
 -- Here's how you could run a TCP server that handles in different threads each
--- incoming connection to port 80 on any available IPv6 address:
+-- incoming connection to port @8000@ at address @127.0.0.1@:
 --
--- > listen HostIPv6 "80" $ \(listeningSocket, listeningAddr) -> do
--- >   putStrLn $ "Listening for incoming connections in " ++ show listeningAddr
+-- > listen (Host "127.0.0.1") "8000" $ \(listeningSocket, listeningAddr) -> do
+-- >   putStrLn $ "Listening for incoming connections at " ++ show listeningAddr
 -- >   forever . acceptFork listeningSocket $ \(connectionSocket, remoteAddr) -> do
 -- >     putStrLn $ "Connection established from " ++ show remoteAddr
 -- >     -- now you may use connectionSocket as you please within this scope,
