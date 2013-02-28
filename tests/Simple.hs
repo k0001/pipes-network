@@ -74,6 +74,7 @@ serveOnceAndWrite hp port msg = do
 
 -- Note: In all the tests below we wait a bit before starting the
 -- client, hoping that by then the server has already started.
+-- Yes, I know, it's not the best approach. Hopefully it will be enough.
 waitTime :: Int -- in microseconds (1e6)
 waitTime = 200000
 
