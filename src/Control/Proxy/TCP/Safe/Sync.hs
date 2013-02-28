@@ -12,6 +12,8 @@ module Control.Proxy.TCP.Safe.Sync (
   -- * Socket proxies
   socketSyncServer,
   socketSyncProxy,
+  -- * RPC support
+  syncDelimit,
   -- * Protocol
   Request(..),
   Response(..),
@@ -19,7 +21,8 @@ module Control.Proxy.TCP.Safe.Sync (
 
 import           Control.Monad
 import qualified Control.Proxy                    as P
-import           Control.Proxy.TCP.Sync   (Request(..), Response(..))
+import           Control.Proxy.TCP.Sync
+                    (Request(..), Response(..), syncDelimit)
 import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString                  as B
@@ -69,6 +72,7 @@ socketSyncServer (Just wait) sock = loop where
           Nothing -> P.throw $ ex "recv"
           Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
     ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+{-# INLINABLE socketSyncServer #-}
 
 -- | 'P.Proxy' able to send and receive bytes through a 'NS.Socket'.
 --
@@ -113,3 +117,5 @@ socketSyncProxy (Just wait) sock = loop where
           Nothing -> P.throw $ ex "recv"
           Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
     ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+{-# INLINABLE socketSyncProxy #-}
+

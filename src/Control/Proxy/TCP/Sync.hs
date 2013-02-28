@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | This module exports 'P.Proxy's that allow implementing synchronous RPC-like
 -- communication with a remote end by using a simple protocol on their
 -- downstream interface.
@@ -17,6 +19,8 @@ module Control.Proxy.TCP.Sync (
   -- $timeouts
   socketSyncServerTimeout,
   socketSyncProxyTimeout,
+  -- * RPC support
+  syncDelimit,
   -- * Protocol types
   Request(..),
   Response(..),
@@ -27,7 +31,7 @@ import           Control.Monad.Trans.Class
 import qualified Control.Proxy                    as P
 import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Trans.Either       as PE
-import qualified Data.ByteString                  as B
+import qualified Data.ByteString.Char8            as B
 import           Data.Monoid
 import qualified Network.Socket                   as NS
 import           Network.Socket.ByteString        (recv, sendAll)
@@ -41,6 +45,8 @@ data Request t = Send t | Receive Int
 -- | A response received from one of 'socketSyncServer' or 'socketSyncProxy'.
 data Response = Sent | Received B.ByteString
   deriving (Eq, Read, Show)
+
+--------------------------------------------------------------------------------
 
 -- | 'P.Server' able to send and receive bytes through a 'NS.Socket'.
 --
@@ -65,7 +71,7 @@ socketSyncServer sock = P.runIdentityK loop where
     loop (Receive nbytes) = do
         bs <- lift $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
-
+{-# INLINABLE socketSyncServer #-}
 
 -- | 'P.Proxy' able to send and receive bytes through a 'NS.Socket'.
 --
@@ -92,8 +98,9 @@ socketSyncProxy sock = P.runIdentityK loop where
     loop (Receive nbytes) = do
         bs <- lift $ recv sock nbytes
         unless (B.null bs) $ P.respond (Received bs) >>= loop
+{-# INLINABLE socketSyncProxy #-}
 
-
+--------------------------------------------------------------------------------
 
 -- $timeouts
 --
@@ -121,6 +128,7 @@ socketSyncServerTimeout wait sock = loop where
           Nothing -> PE.throw $ ex "recv"
           Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
     ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+{-# INLINABLE socketSyncServerTimeout #-}
 
 -- | Like 'socketSyncProxy', except it throws a 'Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if interacting with the remote end takes
@@ -144,3 +152,52 @@ socketSyncProxyTimeout wait sock = loop where
           Nothing -> PE.throw $ ex "recv"
           Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
     ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+{-# INLINABLE socketSyncProxyTimeout #-}
+
+--------------------------------------------------------------------------------
+
+-- | When used together with one of the @socketSync*@ proxies upstream, this
+-- proxy sends a single 'B.ByteString' to the remote end and then repeatedly
+-- receives bytes from the remote end until the given delimiter is found.
+-- Finally, a single 'B.ByteString' up to the given delimiter (inclusive) is
+-- sent downstream and then the whole process is repeated.
+--
+-- This proxy works cooperatively with any @socketSync*@ proxy immediately
+-- upstream, so read their documentation to understand the purpose of the
+-- @b'@ value received from downstream.
+--
+-- For example, if you'd like to convert a 'NS.Socket' into an synchronous
+-- line-oriented RPC client implemented as a 'P.Server' in which RPC calls are
+-- received via the downstream interface and RPC responses are sent downstream,
+-- then you could use this proxy as:
+--
+-- > socketSyncServer ... >-> syncDelimit 4096 "\r\n"
+--
+-- Otherwise, if you'd like to convert a 'NS.Socket' into an synchronous
+-- line-oriented RPC client implemented as a 'P.Proxy' in which RPC calls are
+-- received via the upstream interface and RPC responses are sent downstream,
+-- then you could use this proxy as:
+--
+-- > socketSyncProxy ... >-> syncDelimit 4096 "\r\n"
+syncDelimit
+  :: (Monad m, P.Proxy p)
+  => Int                -- ^Maximum number of bytes to receive at once.
+  -> B.ByteString       -- ^Delimiting bytes.
+  -> b'-> p (Request b') Response b' B.ByteString m r
+syncDelimit nbytes delim b' =
+    -- XXX this implementation might be inefficient.
+    P.runIdentityP $ use =<< more mempty (Send b')
+  where
+    more buf req = do
+      a <- P.request req
+      case a of
+        Received bs -> return (buf <> bs)
+        Sent        -> more buf (Receive nbytes)
+    use buf = do
+      let (pre,suf) = B.breakSubstring delim buf
+      case B.length suf of
+        0 -> use =<< more buf (Receive nbytes)
+        _ -> do b'2 <- P.respond (pre <> delim)
+                use =<< more (B.drop (B.length delim) suf) (Send b'2)
+{-# INLINABLE syncDelimit #-}
+
