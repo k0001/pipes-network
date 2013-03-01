@@ -21,9 +21,9 @@ import qualified Network.Socket as             NS
 
 -- | Preferred host to bind.
 data HostPreference
-  = HostAny          -- ^Any avaiable host.
-  | HostIPv4         -- ^Any avaiable IPv4 host.
-  | HostIPv6         -- ^Any avaiable IPv6 host.
+  = HostAny          -- ^Any available host.
+  | HostIPv4         -- ^Any available IPv4 host.
+  | HostIPv6         -- ^Any available IPv6 host.
   | Host NS.HostName -- ^An explicit host name.
   deriving (Eq, Ord, Show, Read)
 
