@@ -206,6 +206,8 @@ listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
+--
+-- Note: You don't need to use 'listen' nor 'accept' if you use this function.
 serve
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -225,6 +227,9 @@ serve morph hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
+--
+-- Note: You don't need to use 'listen' nor 'acceptFork' if you use this
+-- function.
 serveFork
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.

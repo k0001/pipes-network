@@ -138,6 +138,8 @@ listen hp port = E.bracket listen' (NS.sClose . fst)
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
+--
+-- Note: You don't need to use 'listen' nor 'accept' if you use this function.
 serve
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
@@ -155,6 +157,9 @@ serve hp port k = do
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
+--
+-- Note: You don't need to use 'listen' nor 'acceptFork' if you use this
+-- function.
 serveFork
   :: HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName   -- ^Service port to bind.
