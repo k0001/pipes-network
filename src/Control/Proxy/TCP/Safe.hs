@@ -5,7 +5,7 @@
 -- resources within the pipeline itself, using the facilities provided by
 -- 'P.ExceptionP' from the @pipes-safe@ library.
 --
--- Instead, if just want to use resources already acquired a released outside
+-- Instead, if just want to use resources already acquired or released outside
 -- the pipeline, then you could use the simpler functions exported by
 -- "Control.Proxy.TCP".
 
