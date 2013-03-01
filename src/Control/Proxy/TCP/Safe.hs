@@ -5,8 +5,8 @@
 -- resources within the pipeline itself, using the facilities provided by
 -- 'P.ExceptionP' from the @pipes-safe@ library.
 --
--- Instead, if you want to acquire and release resources outside a 'P.Proxy'
--- pipeline, then you should use the functions exported by
+-- Instead, if just want to use resources already acquired a released outside
+-- the pipeline, then you could use the simpler functions exported by
 -- "Control.Proxy.TCP".
 
 module Control.Proxy.TCP.Safe (
