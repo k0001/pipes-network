@@ -8,7 +8,7 @@ maintainer: renzocarbonaraλgmail.com
 stability: Experimental
 tested-with: GHC == 7.4.1
 homepage: https://github.com/k0001/pipes-network
-bug-reports: https://github.com/k0001/pipes-network
+bug-reports: https://github.com/k0001/pipes-network/issues
 category: Control, Pipes, Network
 build-type: Simple
 synopsis: Use network sockets together with the pipes library.
