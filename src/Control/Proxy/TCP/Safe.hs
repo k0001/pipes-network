@@ -1,8 +1,9 @@
 {-# LANGUAGE Rank2Types #-}
 
 -- | This module exports functions that allow you to safely use 'NS.Socket'
--- resources acquired and release within a 'P.Proxy' pipeline, using the
--- facilities provided by 'P.ExceptionP' from the @pipes-safe@ library.
+-- resources within a 'P.Proxy' pipeline, possibly acquiring and releasing such
+-- resources within the pipeline itself, using the facilities provided by
+-- 'P.ExceptionP' from the @pipes-safe@ library.
 --
 -- Instead, if you want to acquire and release resources outside a 'P.Proxy'
 -- pipeline, then you should use the functions exported by

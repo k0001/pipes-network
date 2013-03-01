@@ -1,8 +1,8 @@
 -- | This module exports functions that allow you to safely use 'NS.Socket'
 -- resources acquired and release outside a 'P.Proxy' pipeline.
 --
--- Instead, if want to safely acquire and release resources within a 'P.Proxy'
--- pipeline, then you should use the functions exported by
+-- Instead, if want to safely acquire and release resources within the
+-- pipeline itself, then you should use the functions exported by
 -- "Control.Proxy.TCP.Safe".
 
 -- Some code in this file was adapted from the @network-conduit@ library by
