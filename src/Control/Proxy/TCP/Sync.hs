@@ -38,11 +38,11 @@ import           Network.Socket.ByteString        (recv, sendAll)
 import           System.Timeout                   (timeout)
 
 
--- | A request made to one of 'socketSyncServer' or 'socketSyncProxy'.
+-- | A request made to one of the @socketSync*@ proxies.
 data Request t = Send t | Receive Int
   deriving (Eq, Read, Show)
 
--- | A response received from one of 'socketSyncServer' or 'socketSyncProxy'.
+-- | A response received from one of the @socketSync*@ proxies.
 data Response = Sent | Received B.ByteString
   deriving (Eq, Read, Show)
 
