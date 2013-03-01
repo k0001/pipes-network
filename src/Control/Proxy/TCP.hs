@@ -354,7 +354,7 @@ bindSock hp port = do
     hints = NS.defaultHints { NS.addrFlags = [NS.AI_PASSIVE]
                             , NS.addrSocketType = NS.Stream }
 
-    tryAddrs []     = error "listen: no addresses available"
+    tryAddrs []     = error "bindSock: no addresses available"
     tryAddrs [x]    = useAddr x
     tryAddrs (x:xs) = E.catch (useAddr x)
                               (\e -> let _ = e :: E.IOException in tryAddrs xs)
