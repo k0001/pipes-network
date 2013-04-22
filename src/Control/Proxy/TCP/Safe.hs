@@ -39,7 +39,7 @@ module Control.Proxy.TCP.Safe (
   socketWriteD,
 
   -- * Exports
-  HostPreference(..),
+  S.HostPreference(..),
   Timeout(..)
   ) where
 
@@ -48,12 +48,12 @@ import qualified Control.Exception              as E
 import           Control.Monad
 import qualified Control.Proxy                  as P
 import           Control.Proxy.Network.Internal
-import qualified Control.Proxy.TCP      as T
 import qualified Control.Proxy.Safe             as P
 import qualified Data.ByteString                as B
 import           Data.Monoid
 import qualified Network.Socket                 as NS
 import           Network.Socket.ByteString      (sendAll, recv)
+import qualified Network.Simple.TCP             as S
 import           System.Timeout                 (timeout)
 
 --------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ import           System.Timeout                 (timeout)
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- If you prefer to acquire close the socket yourself, then use
--- 'T.connectSock' and the 'NS.sClose' from "Network.Socket" instead.
+-- 'S.connectSock' and the 'NS.sClose' from "Network.Socket" instead.
 connect
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
@@ -91,7 +91,7 @@ connect
                                    -- address.
   -> P.ExceptionP p a' a b' b m r
 connect morph host port =
-    P.bracket morph (T.connectSock host port) (NS.sClose . fst)
+    P.bracket morph (S.connectSock host port) (NS.sClose . fst)
 
 --------------------------------------------------------------------------------
 
@@ -180,7 +180,7 @@ connectWriteD mwait hp port x = do
 -- The listening socket is closed when done or in case of exceptions.
 --
 -- If you prefer to acquire and close the socket yourself, then use
--- 'T.bindSock' and the 'NS.listen' and 'NS.sClose' functions from
+-- 'S.bindSock' and the 'NS.listen' and 'NS.sClose' functions from
 -- "Network.Socket" instead.
 --
 -- Note: 'N.maxListenQueue' is tipically 128, which is too small for high
@@ -189,7 +189,7 @@ connectWriteD mwait hp port x = do
 listen
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> HostPreference                -- ^Preferred host to bind.
+  -> S.HostPreference              -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Computation taking the listening
@@ -197,7 +197,7 @@ listen
   -> P.ExceptionP p a' a b' b m r
 listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
   where
-    listen' = do x@(bsock,_) <- T.bindSock hp port
+    listen' = do x@(bsock,_) <- S.bindSock hp port
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 
@@ -211,7 +211,7 @@ listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
 serve
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> HostPreference                -- ^Preferred host to bind.
+  -> S.HostPreference              -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
                                    -- ^Computation to run once an incoming
@@ -233,7 +233,7 @@ serve morph hp port k = do
 serveFork
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> HostPreference                -- ^Preferred host to bind.
+  -> S.HostPreference              -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
                                    -- ^Computation to run in a different thread
@@ -311,7 +311,7 @@ serveReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive at once.
-  -> HostPreference     -- ^Preferred host to bind.
+  -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 serveReadS mwait nbytes hp port () = do
@@ -340,7 +340,7 @@ serveReadS mwait nbytes hp port () = do
 serveWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> HostPreference     -- ^Preferred host to bind.
+  -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 serveWriteD mwait hp port x = do
