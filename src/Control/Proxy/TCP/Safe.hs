@@ -10,6 +10,14 @@
 -- "Control.Proxy.TCP".
 
 module Control.Proxy.TCP.Safe (
+  -- * Client side
+  -- $client-side
+  connect,
+  -- ** Streaming
+  -- $client-streaming
+  connectReadS,
+  connectWriteD,
+
   -- * Server side
   -- $server-side
   serve,
@@ -22,14 +30,6 @@ module Control.Proxy.TCP.Safe (
   -- $server-streaming
   serveReadS,
   serveWriteD,
-
-  -- * Client side
-  -- $client-side
-  connect,
-  -- ** Streaming
-  -- $client-streaming
-  connectReadS,
-  connectWriteD,
 
   -- * Socket streams
   -- $socket-streaming
@@ -59,19 +59,18 @@ import           System.Timeout                 (timeout)
 
 -- $client-side
 --
--- The following functions allow you to obtain and use 'NS.Socket's useful to
--- the client side of a TCP connection.
---
 -- Here's how you could run a TCP client:
 --
--- > connect id "www.example.org" "80" $ \(connectionSocket, remoteAddr) -> do
+-- > connect "www.example.org" "80" $ \(connectionSocket, remoteAddr) -> do
 -- >   tryIO . putStrLn $ "Connection established to " ++ show remoteAddr
--- >   -- now you may use connectionSocket as you please within this scope,
+-- >   -- now you may use connectionSocket as you please within this scope.
 -- >   -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
 -- >   -- proxies explained below.
 --
 -- You might instead prefer the simpler but less general solutions offered by
 -- 'connectReadS' and 'connectWriteD', so check those too.
+
+--------------------------------------------------------------------------------
 
 -- | Connect to a TCP server and use the connection.
 --
@@ -99,6 +98,8 @@ connect morph host port =
 -- The following proxies allow you to easily connect to a TCP server and
 -- immediately interact with it using streams, all at once, instead of
 -- having to perform the individual steps separately.
+
+--------------------------------------------------------------------------------
 
 -- | Connect to a TCP server and send downstream the bytes received from the
 -- remote end.
@@ -155,24 +156,46 @@ connectWriteD mwait hp port x = do
 
 -- $server-side
 --
--- The following functions allow you to obtain and use 'NS.Socket's useful to
--- the server side of a TCP connection.
+-- Here's how you can run a TCP server that handles in different threads each
+-- incoming connection to port @8000@ at IPv4 address @127.0.0.1@:
 --
--- Here's how you could run a TCP server that handles in different threads each
--- incoming connection to port @8000@ at address @127.0.0.1@:
+-- > serve (Host "127.0.0.1") "8000" $ \(connectionSocket, remoteAddr) -> do
+-- >   tryIO . putStrLn $ "TCP connection established from " ++ show remoteAddr
+-- >   -- now you may use connectionSocket as you please within this scope.
+-- >   -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
+-- >   -- proxies explained below.
 --
--- > listen id (Host "127.0.0.1") "8000" $ \(listeningSocket, listeningAddr) -> do
--- >   tryIO . putStrLn $ "Listening for incoming connections at " ++ show listeningAddr
--- >   forever . acceptFork id listeningSocket $ \(connectionSocket, remoteAddr) -> do
--- >     putStrLn $ "Connection established from " ++ show remoteAddr
--- >     -- now you may use connectionSocket as you please within this scope,
--- >     -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
--- >     -- proxies explained below.
+-- You might instead prefer the simpler but less general solutions offered by
+-- 'serveReadS' and 'serveWriteD', so check those too. On the other hand,
+-- if you need more control on the way your server runs, then you can use more
+-- advanced functions such as 'listen', 'accept' and 'acceptFork'.
+
+--------------------------------------------------------------------------------
+
+-- | Start a TCP server that accepts incoming connections and handles each of
+-- them concurrently in different threads.
 --
--- If you keep reading you'll discover there are different ways to achieve
--- the same, some ways more general than others. The above one was just an
--- example using a pretty general approach, you are encouraged to use simpler
--- approaches such as 'serve' or 'serveReadS' if those suit your needs.
+-- Any acquired network resources are properly closed and discarded when done or
+-- in case of exceptions.
+--
+-- Note: This function performs 'listen' and 'acceptFork', so you don't need to
+-- perform those manually.
+serve
+  :: (P.Proxy p, Monad m)
+  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
+  -> S.HostPreference              -- ^Preferred host to bind.
+  -> NS.ServiceName                -- ^Service port to bind.
+  -> ((NS.Socket, NS.SockAddr) -> IO ())
+                                   -- ^Computation to run in a different thread
+                                   -- once an incoming connection is accepted.
+                                   -- Takes the connection socket and remote end
+                                   -- address.
+  -> P.ExceptionP p a' a b' b m r
+serve morph hp port k = do
+   listen morph hp port $ \(lsock,_) -> do
+     forever $ acceptFork morph lsock k
+
+--------------------------------------------------------------------------------
 
 -- | Bind a TCP listening socket and use it.
 --
@@ -200,28 +223,7 @@ listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 
--- | Start a TCP server that accepts incoming connections and handles each of
--- them concurrently in different threads.
---
--- The listening and connection sockets are closed when done or in case of
--- exceptions.
---
--- Note: You don't need to use 'listen' nor 'acceptFork' if you use this
--- function.
-serve
-  :: (P.Proxy p, Monad m)
-  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> S.HostPreference              -- ^Preferred host to bind.
-  -> NS.ServiceName                -- ^Service port to bind.
-  -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                   -- ^Computation to run in a different thread
-                                   -- once an incoming connection is accepted.
-                                   -- Takes the connection socket and remote end
-                                   -- address.
-  -> P.ExceptionP p a' a b' b m r
-serve morph hp port k = do
-   listen morph hp port $ \(lsock,_) -> do
-     forever $ acceptFork morph lsock k
+--------------------------------------------------------------------------------
 
 -- | Accept a single incoming connection and use it.
 --
@@ -265,6 +267,8 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- The following proxies allow you to easily run a TCP server and immediately
 -- interact with incoming connections using streams, all at once, instead of
 -- having to perform the individual steps separately.
+
+--------------------------------------------------------------------------------
 
 -- | Binds a listening socket, accepts a single connection and sends downstream
 -- any bytes received from the remote end.
@@ -332,6 +336,8 @@ serveWriteD mwait hp port x = do
 --
 -- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
 -- to interact with the other connection end using streams.
+
+--------------------------------------------------------------------------------
 
 -- | Receives bytes from the remote end and sends them downstream.
 --
@@ -408,6 +414,4 @@ socketWriteD (Just wait) sock = loop where
         Just () -> P.respond a >>= loop
     ex = Timeout $ "sendAll: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteD #-}
-
-
 
