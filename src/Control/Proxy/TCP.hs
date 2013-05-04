@@ -14,7 +14,6 @@ module Control.Proxy.TCP (
   -- * Server side
   -- $server-side
     S.serve
-  , S.serveFork
   -- ** Listening
   , S.listen
   -- ** Accepting
