@@ -1,8 +1,10 @@
 # Version HEAD
 
 * Depend on network-simple 0.2
-* `Control.Proxy.TCP.serveFork` was renamed to `serve`, and the previous
-  function named `serve` was removed.
+
+* In both modules `Control.Proxy.TCP` and `Control.Proxy.TCP.Safe`:
+  `serveFork` was renamed to `serve` and the previous function named
+  `serve` was removed.
 
 
 # Version 0.1.1.0
