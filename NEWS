@@ -1,0 +1,27 @@
+# Version HEAD
+
+* Depend on network-simple 0.2
+* `Control.Proxy.TCP.serveFork` was renamed to `serve`, and the previous
+  function named `serve` was removed.
+
+
+# Version 0.1.1.0
+
+* Split many of the non-pipes-related TCP utilities to the own
+  `network-simple` package.
+* Depend on `network-simple` and re-export its functions.
+
+# Version 0.1.0.1
+
+* Dependency bumps.
+
+
+# Version 0.1.0
+
+* New backwards incompatible API
+* Based on pipes 3.1
+
+
+# Up to version 0.0.2
+
+* Based on pipes-core.

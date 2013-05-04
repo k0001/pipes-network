@@ -13,7 +13,7 @@ category:           Pipes, Network
 build-type:         Simple
 synopsis:           Use network sockets together with the pipes library.
 cabal-version:      >=1.8
-extra-source-files: README.md PEOPLE
+extra-source-files: README.md PEOPLE NEWS
 description:
   Use network sockets together with the @pipes@ library.
   .
@@ -26,6 +26,9 @@ description:
   * "Control.Proxy.TCP.Safe" exports @pipes-safe@ proxies and functions to deal
   with TCP connections. Such proxies may safely acquire and release resources
   within a pipeline, using the facilities provided by the @pipes-safe@ package.
+  .
+  See the @NEWS@ file in the source distribution to learn about any
+  important changes between version.
 
 source-repository head
     type: git
