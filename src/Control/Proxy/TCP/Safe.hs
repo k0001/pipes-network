@@ -13,7 +13,6 @@ module Control.Proxy.TCP.Safe (
   -- * Server side
   -- $server-side
   serve,
-  serveFork,
   -- ** Listening
   listen,
   -- ** Accepting
@@ -201,36 +200,15 @@ listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
                  NS.listen bsock $ max 2048 NS.maxListenQueue
                  return x
 
--- | Start a TCP server that sequentially accepts and uses each incoming
--- connection.
---
--- Both the listening and connection sockets are closed when done or in case of
--- exceptions.
---
--- Note: You don't need to use 'listen' nor 'accept' if you use this function.
-serve
-  :: (P.Proxy p, Monad m)
-  => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
-  -> S.HostPreference              -- ^Preferred host to bind.
-  -> NS.ServiceName                -- ^Service port to bind.
-  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
-                                   -- ^Computation to run once an incoming
-                                   -- connection is accepted. Takes the
-                                   -- connection socket and remote end address.
-  -> P.ExceptionP p a' a b' b m r
-serve morph hp port k = do
-   listen morph hp port $ \(lsock,_) -> do
-     forever $ accept morph lsock k
-
--- | Start a TCP server that accepts incoming connections and uses them
--- concurrently in different threads.
+-- | Start a TCP server that accepts incoming connections and handles each of
+-- them concurrently in different threads.
 --
 -- The listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
 -- Note: You don't need to use 'listen' nor 'acceptFork' if you use this
 -- function.
-serveFork
+serve
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> S.HostPreference              -- ^Preferred host to bind.
@@ -241,7 +219,7 @@ serveFork
                                    -- Takes the connection socket and remote end
                                    -- address.
   -> P.ExceptionP p a' a b' b m r
-serveFork morph hp port k = do
+serve morph hp port k = do
    listen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
 
