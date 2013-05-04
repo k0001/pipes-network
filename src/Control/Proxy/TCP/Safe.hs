@@ -364,7 +364,7 @@ socketReadS (Just wait) nbytes sock () = loop where
       case mbs of
         Nothing -> P.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >> loop
-    ex = Timeout $ "recv: " <> show wait <> " microseconds."
+    ex = Timeout $ "socketReadS: " <> show wait <> " microseconds."
 {-# INLINABLE socketReadS #-}
 
 -- | Just like 'socketReadS', except each request from downstream specifies the
@@ -384,7 +384,7 @@ nsocketReadS (Just wait) sock = loop where
       case mbs of
         Nothing -> P.throw ex
         Just bs -> unless (B.null bs) $ P.respond bs >>= loop
-    ex = Timeout $ "recv: " <> show wait <> " microseconds."
+    ex = Timeout $ "nsocketReadS: " <> show wait <> " microseconds."
 {-# INLINABLE nsocketReadS #-}
 
 -- | Sends to the remote end the bytes received from upstream, then forwards
@@ -412,6 +412,6 @@ socketWriteD (Just wait) sock = loop where
       case m of
         Nothing -> P.throw ex
         Just () -> P.respond a >>= loop
-    ex = Timeout $ "sendAll: " <> show wait <> " microseconds."
+    ex = Timeout $ "socketWriteD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteD #-}
 
