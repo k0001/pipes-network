@@ -11,18 +11,18 @@
 
 
 module Control.Proxy.TCP (
+  -- * Client side
+  -- $client-side
+    S.connect
+
   -- * Server side
   -- $server-side
-    S.serve
+  , S.serve
   -- ** Listening
   , S.listen
   -- ** Accepting
   , S.accept
   , S.acceptFork
-
-  -- * Client side
-  -- $client-side
-  , S.connect
 
   -- * Socket streams
   -- $socket-streaming
