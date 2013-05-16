@@ -112,13 +112,16 @@ connect morph host port =
 --
 -- Using this proxy you can write straightforward code like the following, which
 -- prints whatever is received from a single TCP connection to a given server
--- listening locally on port 9000:
+-- listening locally on port 9000, in chunks of up to 4096 bytes:
 --
 -- >>> runSafeIO . runProxy . runEitherK $ connectReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 connectReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> Int                -- ^Maximum number of bytes to receive at once.
+  -> Int                -- ^Maximum number of bytes to receive and send
+                        -- dowstream at once. Any positive value is fine, the
+                        -- optimal value depends on how you deal with the
+                        -- received data. Try using @4096@ if you don't care.
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
@@ -285,14 +288,18 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 -- exceptions.
 --
 -- Using this proxy you can write straightforward code like the following, which
--- prints whatever is received from a single TCP connection to port 9000:
+-- prints whatever is received from a single TCP connection to port 9000, in
+-- chunks of up to 4096 bytes.
 --
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeIO . runProxy . runEitherK $ serveReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 serveReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> Int                -- ^Maximum number of bytes to receive at once.
+  -> Int                -- ^Maximum number of bytes to receive and send
+                        -- dowstream at once. Any positive value is fine, the
+                        -- optimal value depends on how you deal with the
+                        -- received data. Try using @4096@ if you don't care.
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
@@ -351,7 +358,10 @@ serveWriteD mwait hp port x = do
 socketReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> Int                -- ^Maximum number of bytes to receive at once.
+  -> Int                -- ^Maximum number of bytes to receive and send
+                        -- dowstream at once. Any positive value is fine, the
+                        -- optimal value depends on how you deal with the
+                        -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 socketReadS Nothing nbytes sock () = loop where

@@ -94,7 +94,10 @@ import           System.Timeout                 (timeout)
 -- If the remote peer closes its side of the connection, this proxy returns.
 socketReadS
   :: P.Proxy p
-  => Int                -- ^Maximum number of bytes to receive at once.
+  => Int                -- ^Maximum number of bytes to receive and send
+                        -- dowstream at once. Any positive value is fine, the
+                        -- optimal value depends on how you deal with the
+                        -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer p B.ByteString IO ()
 socketReadS nbytes sock () = P.runIdentityP loop where
@@ -143,7 +146,10 @@ socketWriteD sock = P.runIdentityK loop where
 socketReadTimeoutS
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
-  -> Int                -- ^Maximum number of bytes to receive at once.
+  -> Int                -- ^Maximum number of bytes to receive and send
+                        -- dowstream at once. Any positive value is fine, the
+                        -- optimal value depends on how you deal with the
+                        -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
   -> () -> P.Producer (PE.EitherP Timeout p) B.ByteString IO ()
 socketReadTimeoutS wait nbytes sock () = loop where
