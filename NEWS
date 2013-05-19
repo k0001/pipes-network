@@ -1,3 +1,14 @@
+# Version HEAD
+
+* Quietly stop writing or reading bytes from a TCP socket if a
+  “Broken Pipe” error happens, indicating that the remote end
+  already closed the connection. Previously, a `ResourceVanished`
+  exception was thrown.
+
+* All the `*Write*D` proxies now return `()` if the remote end
+  closed the connection.
+
+
 # Version 0.2.0.0
 
 * Depend on network-simple 0.2
