@@ -51,7 +51,6 @@ import qualified Control.Proxy.Safe             as P
 import qualified Data.ByteString                as B
 import           Data.Monoid
 import qualified Network.Socket                 as NS
-import           Network.Socket.ByteString      (sendAll, recv)
 import qualified Network.Simple.TCP             as S
 import           System.Timeout                 (timeout)
 
@@ -139,6 +138,8 @@ connectReadS mwait nbytes host port () = do
 -- 'P.ExceptionP' proxy transformer.
 --
 -- The connection socket is closed when done or in case of exceptions.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
 --
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client listening locally at port 9000:
@@ -366,14 +367,17 @@ socketReadS
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 socketReadS Nothing nbytes sock () = loop where
     loop = do
-      bs <- P.tryIO $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >> loop
+      mbs <- P.tryIO (recv sock nbytes)
+      case mbs of
+        Just bs -> P.respond bs >> loop
+        Nothing -> return ()
 socketReadS (Just wait) nbytes sock () = loop where
     loop = do
-      mbs <- P.tryIO . timeout wait $ recv sock nbytes
-      case mbs of
-        Nothing -> P.throw ex
-        Just bs -> unless (B.null bs) $ P.respond bs >> loop
+      mmbs <- P.tryIO (timeout wait (recv sock nbytes))
+      case mmbs of
+        Just (Just bs) -> P.respond bs >> loop
+        Just Nothing   -> return ()
+        Nothing        -> P.throw ex
     ex = Timeout $ "socketReadS: " <> show wait <> " microseconds."
 {-# INLINABLE socketReadS #-}
 
@@ -386,14 +390,17 @@ nsocketReadS
   -> Int -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
 nsocketReadS Nothing sock = loop where
     loop nbytes = do
-      bs <- P.tryIO $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >>= loop
+      mbs <- P.tryIO (recv sock nbytes)
+      case mbs of
+        Just bs -> P.respond bs >>= loop
+        Nothing -> return ()
 nsocketReadS (Just wait) sock = loop where
     loop nbytes = do
-      mbs <- P.tryIO . timeout wait $ recv sock nbytes
+      mbs <- P.tryIO (timeout wait (recv sock nbytes))
       case mbs of
-        Nothing -> P.throw ex
-        Just bs -> unless (B.null bs) $ P.respond bs >>= loop
+        Just (Just bs) -> P.respond bs >>= loop
+        Just Nothing   -> return ()
+        Nothing        -> P.throw ex
     ex = Timeout $ "nsocketReadS: " <> show wait <> " microseconds."
 {-# INLINABLE nsocketReadS #-}
 
@@ -405,23 +412,26 @@ nsocketReadS (Just wait) sock = loop where
 -- 'P.ExceptionP' proxy transformer.
 --
 -- Requests from downstream are forwarded upstream.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
 socketWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
 socketWriteD Nothing sock = loop where
     loop x = do
       a <- P.request x
-      P.tryIO $ sendAll sock a
-      P.respond a >>= loop
+      ok <- P.tryIO (send sock a)
+      when ok (P.respond a >>= loop)
 socketWriteD (Just wait) sock = loop where
     loop x = do
       a <- P.request x
-      m <- P.tryIO . timeout wait $ sendAll sock a
-      case m of
-        Nothing -> P.throw ex
-        Just () -> P.respond a >>= loop
+      mok <- P.tryIO (timeout wait (send sock a))
+      case mok of
+        Just True  -> P.respond a >>= loop
+        Just False -> return ()
+        Nothing    -> P.throw ex
     ex = Timeout $ "socketWriteD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteD #-}
 

@@ -34,7 +34,6 @@ import qualified Control.Proxy.Trans.Either       as PE
 import qualified Data.ByteString.Char8            as B
 import           Data.Monoid
 import qualified Network.Socket                   as NS
-import           Network.Socket.ByteString        (recv, sendAll)
 import           System.Timeout                   (timeout)
 
 
@@ -66,11 +65,13 @@ socketSyncServer
   -> P.Server p (Request B.ByteString) Response IO ()
 socketSyncServer sock = P.runIdentityK loop where
     loop (Send bs) = do
-        lift $ sendAll sock bs
-        P.respond Sent >>= loop
+        ok <- lift (send sock bs)
+        when ok (P.respond Sent >>= loop)
     loop (Receive nbytes) = do
-        bs <- lift $ recv sock nbytes
-        unless (B.null bs) $ P.respond (Received bs) >>= loop
+        mbs <- lift (recv sock nbytes)
+        case mbs of
+          Just bs -> P.respond (Received bs) >>= loop
+          Nothing -> return ()
 {-# INLINABLE socketSyncServer #-}
 
 -- | 'P.Proxy' able to send and receive bytes through a 'NS.Socket'.
@@ -93,11 +94,13 @@ socketSyncProxy
   -> p a' B.ByteString (Request a') Response IO ()
 socketSyncProxy sock = P.runIdentityK loop where
     loop (Send a') = do
-        P.request a' >>= lift . sendAll sock
-        P.respond Sent >>= loop
+        ok <- lift . send sock =<< P.request a'
+        when ok (P.respond Sent >>= loop)
     loop (Receive nbytes) = do
-        bs <- lift $ recv sock nbytes
-        unless (B.null bs) $ P.respond (Received bs) >>= loop
+        mbs <- lift (recv sock nbytes)
+        case mbs of
+          Just bs -> P.respond (Received bs) >>= loop
+          Nothing -> return ()
 {-# INLINABLE socketSyncProxy #-}
 
 --------------------------------------------------------------------------------
@@ -118,16 +121,18 @@ socketSyncServerTimeout
   -> P.Server (PE.EitherP Timeout p) (Request B.ByteString) Response IO ()
 socketSyncServerTimeout wait sock = loop where
     loop (Send bs) = do
-        m <- lift . timeout wait $ sendAll sock bs
-        case m of
-          Nothing -> PE.throw $ ex "sendAll"
-          Just () -> P.respond Sent >>= loop
+        mok <- lift (timeout wait (send sock bs))
+        case mok of
+          Just True  -> P.respond Sent >>= loop
+          Just False -> return ()
+          Nothing    -> PE.throw ex
     loop (Receive nbytes) = do
-        mbs <- lift . timeout wait $ recv sock nbytes
-        case mbs of
-          Nothing -> PE.throw $ ex "recv"
-          Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
-    ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+        mmbs <- lift (timeout wait (recv sock nbytes))
+        case mmbs of
+          Just (Just bs) -> P.respond (Received bs) >>= loop
+          Just Nothing   -> return ()
+          Nothing        -> PE.throw ex
+    ex = Timeout $ "socketSyncServerTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE socketSyncServerTimeout #-}
 
 -- | Like 'socketSyncProxy', except it throws a 'Timeout' exception in the
@@ -141,17 +146,18 @@ socketSyncProxyTimeout
   -> (PE.EitherP Timeout p) a' B.ByteString (Request a') Response IO ()
 socketSyncProxyTimeout wait sock = loop where
     loop (Send a') = do
-        bs <- P.request a'
-        m <- lift . timeout wait $ sendAll sock bs
-        case m of
-          Nothing -> PE.throw $ ex "sendAll"
-          Just () -> P.respond Sent >>= loop
+        mok <- lift . timeout wait . send sock =<< P.request a'
+        case mok of
+          Just True  -> P.respond Sent >>= loop
+          Just False -> return ()
+          Nothing    -> PE.throw ex
     loop (Receive nbytes) = do
-        mbs <- lift . timeout wait $ recv sock nbytes
-        case mbs of
-          Nothing -> PE.throw $ ex "recv"
-          Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
-    ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+        mmbs <- lift (timeout wait (recv sock nbytes))
+        case mmbs of
+          Just (Just bs) -> P.respond (Received bs) >>= loop
+          Just Nothing   -> return ()
+          Nothing        -> PE.throw ex
+    ex = Timeout $ "socketSyncProxyTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE socketSyncProxyTimeout #-}
 
 --------------------------------------------------------------------------------

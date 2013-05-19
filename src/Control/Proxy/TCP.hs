@@ -48,7 +48,6 @@ import           Control.Proxy.Network.Internal
 import qualified Data.ByteString                as B
 import           Data.Monoid
 import qualified Network.Socket                 as NS
-import           Network.Socket.ByteString      (recv, sendAll)
 import qualified Network.Simple.TCP             as S
 import           System.Timeout                 (timeout)
 
@@ -102,8 +101,10 @@ socketReadS
   -> () -> P.Producer p B.ByteString IO ()
 socketReadS nbytes sock () = P.runIdentityP loop where
     loop = do
-      bs <- lift $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >> loop
+      mbs <- lift (recv sock nbytes)
+      case mbs of
+        Just bs -> P.respond bs >> loop
+        Nothing -> return ()
 {-# INLINABLE socketReadS #-}
 
 -- | Just like 'socketReadS', except each request from downstream specifies the
@@ -114,23 +115,27 @@ nsocketReadS
   -> Int -> P.Server p Int B.ByteString IO ()
 nsocketReadS sock = P.runIdentityK loop where
     loop nbytes = do
-      bs <- lift $ recv sock nbytes
-      unless (B.null bs) $ P.respond bs >>= loop
+      mbs <- lift (recv sock nbytes)
+      case mbs of
+        Just bs -> P.respond bs >>= loop
+        Nothing -> return ()
 {-# INLINABLE nsocketReadS #-}
 
 -- | Sends to the remote end the bytes received from upstream, then forwards
 -- such same bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
+--
+-- If the remote peer closes its side of the connection, this proxy returns.
 socketWriteD
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> x -> p x B.ByteString x B.ByteString IO r
+  -> x -> p x B.ByteString x B.ByteString IO ()
 socketWriteD sock = P.runIdentityK loop where
     loop x = do
       a <- P.request x
-      lift $ sendAll sock a
-      P.respond a >>= loop
+      ok <- lift (send sock a)
+      when ok (P.respond a >>= loop)
 {-# INLINABLE socketWriteD #-}
 
 --------------------------------------------------------------------------------
@@ -154,11 +159,12 @@ socketReadTimeoutS
   -> () -> P.Producer (PE.EitherP Timeout p) B.ByteString IO ()
 socketReadTimeoutS wait nbytes sock () = loop where
     loop = do
-      mbs <- lift . timeout wait $ recv sock nbytes
-      case mbs of
-        Nothing -> PE.throw ex
-        Just bs -> unless (B.null bs) $ P.respond bs >> loop
-    ex = Timeout $ "recv: " <> show wait <> " microseconds."
+      mmbs <- lift (timeout wait (recv sock nbytes))
+      case mmbs of
+        Just (Just bs) -> P.respond bs >> loop
+        Just Nothing   -> return ()
+        Nothing        -> PE.throw ex
+    ex = Timeout $ "socketReadTimeoutS: " <> show wait <> " microseconds."
 {-# INLINABLE socketReadTimeoutS #-}
 
 -- | Like 'nsocketReadS', except it throws a 'Timeout' exception in the
@@ -171,11 +177,12 @@ nsocketReadTimeoutS
   -> Int -> P.Server (PE.EitherP Timeout p) Int B.ByteString IO ()
 nsocketReadTimeoutS wait sock = loop where
     loop nbytes = do
-      mbs <- lift . timeout wait $ recv sock nbytes
-      case mbs of
-        Nothing -> PE.throw ex
-        Just bs -> unless (B.null bs) $ P.respond bs >>= loop
-    ex = Timeout $ "recv: " <> show wait <> " microseconds."
+      mmbs <- lift (timeout wait (recv sock nbytes))
+      case mmbs of
+        Just (Just bs) -> P.respond bs >>= loop
+        Just Nothing   -> return ()
+        Nothing        -> PE.throw ex
+    ex = Timeout $ "nsocketReadTimeoutS: " <> show wait <> " microseconds."
 {-# INLINABLE nsocketReadTimeoutS #-}
 
 -- | Like 'socketWriteD', except it throws a 'Timeout' exception in the
@@ -185,14 +192,16 @@ socketWriteTimeoutD
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO r
+  -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO ()
 socketWriteTimeoutD wait sock = loop where
     loop x = do
       a <- P.request x
-      mbs <- lift . timeout wait $ sendAll sock a
-      case mbs of
-        Nothing -> PE.throw ex
-        Just () -> P.respond a >>= loop
-    ex = Timeout $ "recv: " <> show wait <> " microseconds."
+      mt <- lift (timeout wait (send sock a))
+      case mt of
+        Just True  -> P.respond a >>= loop
+        Just False -> return ()
+        Nothing    -> PE.throw ex
+    ex = Timeout $ "socketWriteTimeoutD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteTimeoutD #-}
+
 

@@ -7,11 +7,18 @@
 -- There's a @data-timeout@ package, maybe we should depend on that.
 
 module Control.Proxy.Network.Internal (
-  Timeout(..)
+    Timeout(..)
+  , recv
+  , send
   ) where
 
+import qualified Data.ByteString               as B
 import qualified Control.Exception             as E
 import           Data.Typeable                 (Typeable)
+import           GHC.IO.Exception              (IOException(IOError), ioe_type,
+                                                IOErrorType(ResourceVanished))
+import qualified Network.Socket                as NS
+import qualified Network.Socket.ByteString
 
 
 -- |Exception thrown when a timeout has elapsed.
@@ -20,3 +27,29 @@ data Timeout
   deriving (Eq, Show, Typeable)
 
 instance E.Exception Timeout where
+
+
+--------------------------------------------------------------------------------
+
+-- | Read up to a limited number of bytes from a socket.
+--
+-- Returns `Nothing` if the remote end closed the connection (“Broken Pipe”) or
+-- EOF was reached.
+recv :: NS.Socket -> Int -> IO (Maybe B.ByteString)
+recv sock nbytes =
+    E.handle (\IOError{ioe_type=ResourceVanished} -> return Nothing)
+             (do bs <- Network.Socket.ByteString.recv sock nbytes
+                 if B.null bs then return Nothing
+                              else return (Just bs))
+{-# INLINE recv #-}
+
+-- | Writes the given bytes to the socket.
+--
+-- Returns `False` if the remote end closed the connection (“Broken Pipe”),
+-- otherwise `True`.
+send :: NS.Socket -> B.ByteString -> IO Bool
+send sock bs =
+    E.handle (\IOError{ioe_type=ResourceVanished} -> return False)
+             (do Network.Socket.ByteString.sendAll sock bs
+                 return True)
+{-# INLINE send #-}

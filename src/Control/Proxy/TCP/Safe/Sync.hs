@@ -28,7 +28,6 @@ import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString                  as B
 import           Data.Monoid
 import qualified Network.Socket                   as NS
-import           Network.Socket.ByteString        (recv, sendAll)
 import           System.Timeout                   (timeout)
 
 
@@ -52,26 +51,30 @@ socketSyncServer
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Request B.ByteString
-  -> P.Server (P.ExceptionP p) (Request B.ByteString) Response P.SafeIO()
+  -> P.Server (P.ExceptionP p) (Request B.ByteString) Response P.SafeIO ()
 socketSyncServer Nothing sock = loop where
     loop (Send bs) = do
-        P.tryIO $ sendAll sock bs
-        P.respond Sent >>= loop
+        ok <- P.tryIO (send sock bs)
+        when ok (P.respond Sent >>= loop)
     loop (Receive nbytes) = do
-        bs <- P.tryIO $ recv sock nbytes
-        unless (B.null bs) $ P.respond (Received bs) >>= loop
+        mbs <- P.tryIO (recv sock nbytes)
+        case mbs of
+          Just bs -> P.respond (Received bs) >>= loop
+          Nothing -> return ()
 socketSyncServer (Just wait) sock = loop where
     loop (Send bs) = do
-        m <- P.tryIO . timeout wait $ sendAll sock bs
-        case m of
-          Nothing -> P.throw $ ex "sendAll"
-          Just () -> P.respond Sent >>= loop
+        mok <- P.tryIO (timeout wait (send sock bs))
+        case mok of
+          Just True  -> P.respond Sent >>= loop
+          Just False -> return ()
+          Nothing    -> P.throw ex
     loop (Receive nbytes) = do
-        mbs <- P.tryIO . timeout wait $ recv sock nbytes
-        case mbs of
-          Nothing -> P.throw $ ex "recv"
-          Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
-    ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+        mmbs <- P.tryIO (timeout wait (recv sock nbytes))
+        case mmbs of
+          Just (Just bs) -> P.respond (Received bs) >>= loop
+          Just Nothing   -> return ()
+          Nothing        -> P.throw ex
+    ex = Timeout $ "socketSyncServer: " <> show wait <> " microseconds."
 {-# INLINABLE socketSyncServer #-}
 
 -- | 'P.Proxy' able to send and receive bytes through a 'NS.Socket'.
@@ -99,23 +102,28 @@ socketSyncProxy
   -> (P.ExceptionP p) a' B.ByteString (Request a') Response P.SafeIO ()
 socketSyncProxy Nothing sock = loop where
     loop (Send a') = do
-        P.request a' >>= P.tryIO . sendAll sock
-        P.respond Sent >>= loop
+        ok <- P.tryIO . send sock =<< P.request a'
+        when ok (P.respond Sent >>= loop)
     loop (Receive nbytes) = do
-        bs <- P.tryIO $ recv sock nbytes
-        unless (B.null bs) $ P.respond (Received bs) >>= loop
+        mbs <- P.tryIO (recv sock nbytes)
+        case mbs of
+          Just bs -> P.respond (Received bs) >>= loop
+          Nothing -> return ()
 socketSyncProxy (Just wait) sock = loop where
     loop (Send a') = do
         bs <- P.request a'
-        m <- P.tryIO . timeout wait $ sendAll sock bs
-        case m of
-          Nothing -> P.throw $ ex "sendAll"
-          Just () -> P.respond Sent >>= loop
+        mok <- P.tryIO (timeout wait (send sock bs))
+        case mok of
+          Just True  -> P.respond Sent >>= loop
+          Just False -> return ()
+          Nothing    -> P.throw ex
     loop (Receive nbytes) = do
-        mbs <- P.tryIO . timeout wait $ recv sock nbytes
-        case mbs of
-          Nothing -> P.throw $ ex "recv"
-          Just bs -> unless (B.null bs) $ P.respond (Received bs) >>= loop
-    ex s = Timeout $ s <> ": " <> show wait <> " microseconds."
+        mmbs <- P.tryIO (timeout wait (recv sock nbytes))
+        case mmbs of
+          Just (Just bs) -> P.respond (Received bs) >>= loop
+          Just Nothing   -> return ()
+          Nothing        -> P.throw ex
+    ex = Timeout $ "socketSyncProxy: " <> show wait <> " microseconds."
 {-# INLINABLE socketSyncProxy #-}
+
 
