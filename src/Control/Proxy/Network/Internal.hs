@@ -15,8 +15,7 @@ module Control.Proxy.Network.Internal (
 import qualified Data.ByteString               as B
 import qualified Control.Exception             as E
 import           Data.Typeable                 (Typeable)
-import           GHC.IO.Exception              (IOException(IOError), ioe_type,
-                                                IOErrorType(ResourceVanished))
+import qualified GHC.IO.Exception              as Eg
 import qualified Network.Socket                as NS
 import qualified Network.Socket.ByteString
 
@@ -37,7 +36,7 @@ instance E.Exception Timeout where
 -- EOF was reached.
 recv :: NS.Socket -> Int -> IO (Maybe B.ByteString)
 recv sock nbytes =
-    E.handle (\IOError{ioe_type=ResourceVanished} -> return Nothing)
+    E.handle (\Eg.IOError{Eg.ioe_type=Eg.ResourceVanished} -> return Nothing)
              (do bs <- Network.Socket.ByteString.recv sock nbytes
                  if B.null bs then return Nothing
                               else return (Just bs))
@@ -49,7 +48,7 @@ recv sock nbytes =
 -- otherwise `True`.
 send :: NS.Socket -> B.ByteString -> IO Bool
 send sock bs =
-    E.handle (\IOError{ioe_type=ResourceVanished} -> return False)
+    E.handle (\Eg.IOError{Eg.ioe_type=Eg.ResourceVanished} -> return False)
              (do Network.Socket.ByteString.sendAll sock bs
                  return True)
 {-# INLINE send #-}
