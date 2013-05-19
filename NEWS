@@ -1,4 +1,4 @@
-# Version HEAD
+# Version 0.3.0.0
 
 * Quietly stop writing or reading bytes from a TCP socket if a
   “Broken Pipe” error happens, indicating that the remote end
