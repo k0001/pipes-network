@@ -43,12 +43,6 @@ recv sock nbytes =
 {-# INLINE recv #-}
 
 -- | Writes the given bytes to the socket.
---
--- Returns `False` if the remote end closed the connection (“Broken Pipe”),
--- otherwise `True`.
-send :: NS.Socket -> B.ByteString -> IO Bool
-send sock bs =
-    E.handle (\Eg.IOError{Eg.ioe_type=Eg.ResourceVanished} -> return False)
-             (do Network.Socket.ByteString.sendAll sock bs
-                 return True)
+send :: NS.Socket -> B.ByteString -> IO ()
+send = Network.Socket.ByteString.sendAll
 {-# INLINE send #-}

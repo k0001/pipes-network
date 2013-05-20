@@ -139,8 +139,6 @@ connectReadS mwait nbytes host port () = do
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
---
 -- Using this proxy you can write straightforward code like the following, which
 -- greets a TCP client listening locally at port 9000:
 --
@@ -151,7 +149,7 @@ connectWriteD
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
 connectWriteD mwait hp port x = do
    connect id hp port $ \(csock,_) ->
      socketWriteD mwait csock x
@@ -283,7 +281,8 @@ acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if the remote peer closes its side of the connection or
+-- EOF is received.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
@@ -332,7 +331,7 @@ serveWriteD
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
 serveWriteD mwait hp port x = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
@@ -355,7 +354,8 @@ serveWriteD mwait hp port x = do
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if the remote peer closes its side of the connection or
+-- EOF is received.
 socketReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -412,26 +412,23 @@ nsocketReadS (Just wait) sock = loop where
 -- 'P.ExceptionP' proxy transformer.
 --
 -- Requests from downstream are forwarded upstream.
---
--- If the remote peer closes its side of the connection, this proxy returns.
 socketWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO ()
+  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
 socketWriteD Nothing sock = loop where
     loop x = do
       a <- P.request x
-      ok <- P.tryIO (send sock a)
-      when ok (P.respond a >>= loop)
+      P.tryIO (send sock a)
+      P.respond a >>= loop
 socketWriteD (Just wait) sock = loop where
     loop x = do
       a <- P.request x
-      mok <- P.tryIO (timeout wait (send sock a))
-      case mok of
-        Just True  -> P.respond a >>= loop
-        Just False -> return ()
-        Nothing    -> P.throw ex
+      m <- P.tryIO (timeout wait (send sock a))
+      case m of
+        Just () -> P.respond a >>= loop
+        Nothing -> P.throw ex
     ex = Timeout $ "socketWriteD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteD #-}
 

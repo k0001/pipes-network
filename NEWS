@@ -1,3 +1,11 @@
+# Version HEAD
+
+* Do not handle “Broken Pipe” errors on the `*Write*D` proxies anymore.
+  As as a result, those proxies run forever and have a polymorphic
+  return value, which makes this release binary compatible with 0.2.0.0,
+  but not with 0.3.0.0.
+
+
 # Version 0.3.0.0
 
 * Quietly stop writing or reading bytes from a TCP socket if a

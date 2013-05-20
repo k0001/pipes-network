@@ -40,7 +40,6 @@ module Control.Proxy.TCP (
   , Timeout(..)
   ) where
 
-import           Control.Monad
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy                  as P
 import qualified Control.Proxy.Trans.Either     as PE
@@ -90,7 +89,8 @@ import           System.Timeout                 (timeout)
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if the remote peer closes its side of the connection or
+-- EOF is received.
 socketReadS
   :: P.Proxy p
   => Int                -- ^Maximum number of bytes to receive and send
@@ -125,17 +125,15 @@ nsocketReadS sock = P.runIdentityK loop where
 -- such same bytes downstream.
 --
 -- Requests from downstream are forwarded upstream.
---
--- If the remote peer closes its side of the connection, this proxy returns.
 socketWriteD
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
-  -> x -> p x B.ByteString x B.ByteString IO ()
+  -> x -> p x B.ByteString x B.ByteString IO r
 socketWriteD sock = P.runIdentityK loop where
     loop x = do
       a <- P.request x
-      ok <- lift (send sock a)
-      when ok (P.respond a >>= loop)
+      lift (send sock a)
+      P.respond a >>= loop
 {-# INLINABLE socketWriteD #-}
 
 --------------------------------------------------------------------------------
@@ -192,15 +190,14 @@ socketWriteTimeoutD
   :: P.Proxy p
   => Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO ()
+  -> x -> (PE.EitherP Timeout p) x B.ByteString x B.ByteString IO r
 socketWriteTimeoutD wait sock = loop where
     loop x = do
       a <- P.request x
-      mt <- lift (timeout wait (send sock a))
-      case mt of
-        Just True  -> P.respond a >>= loop
-        Just False -> return ()
-        Nothing    -> PE.throw ex
+      m <- lift (timeout wait (send sock a))
+      case m of
+        Just () -> P.respond a >>= loop
+        Nothing -> PE.throw ex
     ex = Timeout $ "socketWriteTimeoutD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteTimeoutD #-}
 

@@ -26,7 +26,6 @@ module Control.Proxy.TCP.Sync (
   Response(..),
   ) where
 
-import           Control.Monad
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy                    as P
 import           Control.Proxy.Network.Internal
@@ -57,7 +56,8 @@ data Response = Sent | Received B.ByteString
 -- bytes as @'Received' bytes@. Less than the specified maximum number of bytes
 -- might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if EOF is received or the remote end closes its side of
+-- the connection while we are trying to read from it.
 socketSyncServer
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
@@ -65,8 +65,8 @@ socketSyncServer
   -> P.Server p (Request B.ByteString) Response IO ()
 socketSyncServer sock = P.runIdentityK loop where
     loop (Send bs) = do
-        ok <- lift (send sock bs)
-        when ok (P.respond Sent >>= loop)
+        lift (send sock bs)
+        P.respond Sent >>= loop
     loop (Receive nbytes) = do
         mbs <- lift (recv sock nbytes)
         case mbs of
@@ -86,7 +86,8 @@ socketSyncServer sock = P.runIdentityK loop where
 -- bytes as @'Received' bytes@. Less than the specified maximum number of bytes
 -- might be received at once.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if EOF is received or the remote end closes its side of
+-- the connection while we are trying to read from it.
 socketSyncProxy
   :: P.Proxy p
   => NS.Socket          -- ^Connected socket.
@@ -94,8 +95,8 @@ socketSyncProxy
   -> p a' B.ByteString (Request a') Response IO ()
 socketSyncProxy sock = P.runIdentityK loop where
     loop (Send a') = do
-        ok <- lift . send sock =<< P.request a'
-        when ok (P.respond Sent >>= loop)
+        lift . send sock =<< P.request a'
+        P.respond Sent >>= loop
     loop (Receive nbytes) = do
         mbs <- lift (recv sock nbytes)
         case mbs of
@@ -121,11 +122,10 @@ socketSyncServerTimeout
   -> P.Server (PE.EitherP Timeout p) (Request B.ByteString) Response IO ()
 socketSyncServerTimeout wait sock = loop where
     loop (Send bs) = do
-        mok <- lift (timeout wait (send sock bs))
-        case mok of
-          Just True  -> P.respond Sent >>= loop
-          Just False -> return ()
-          Nothing    -> PE.throw ex
+        m <- lift (timeout wait (send sock bs))
+        case m of
+          Just () -> P.respond Sent >>= loop
+          Nothing -> PE.throw ex
     loop (Receive nbytes) = do
         mmbs <- lift (timeout wait (recv sock nbytes))
         case mmbs of
@@ -146,11 +146,10 @@ socketSyncProxyTimeout
   -> (PE.EitherP Timeout p) a' B.ByteString (Request a') Response IO ()
 socketSyncProxyTimeout wait sock = loop where
     loop (Send a') = do
-        mok <- lift . timeout wait . send sock =<< P.request a'
-        case mok of
-          Just True  -> P.respond Sent >>= loop
-          Just False -> return ()
-          Nothing    -> PE.throw ex
+        m <- lift . timeout wait . send sock =<< P.request a'
+        case m of
+          Just () -> P.respond Sent >>= loop
+          Nothing -> PE.throw ex
     loop (Receive nbytes) = do
         mmbs <- lift (timeout wait (recv sock nbytes))
         case mmbs of

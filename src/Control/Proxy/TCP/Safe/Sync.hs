@@ -19,10 +19,9 @@ module Control.Proxy.TCP.Safe.Sync (
   Response(..),
   ) where
 
-import           Control.Monad
 import qualified Control.Proxy                    as P
-import           Control.Proxy.TCP.Sync
-                    (Request(..), Response(..), syncDelimit)
+import           Control.Proxy.TCP.Sync           (Request(..), Response(..),
+                                                   syncDelimit)
 import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Safe               as P
 import qualified Data.ByteString                  as B
@@ -45,7 +44,8 @@ import           System.Timeout                   (timeout)
 -- take more time that such timeout, then throw a 'Timeout' exception in
 -- the 'P.ExceptionP' proxy transformer.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if EOF is received or the remote end closes its side of
+-- the connection while we are trying to read from it.
 socketSyncServer
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -54,8 +54,8 @@ socketSyncServer
   -> P.Server (P.ExceptionP p) (Request B.ByteString) Response P.SafeIO ()
 socketSyncServer Nothing sock = loop where
     loop (Send bs) = do
-        ok <- P.tryIO (send sock bs)
-        when ok (P.respond Sent >>= loop)
+        P.tryIO (send sock bs)
+        P.respond Sent >>= loop
     loop (Receive nbytes) = do
         mbs <- P.tryIO (recv sock nbytes)
         case mbs of
@@ -63,11 +63,10 @@ socketSyncServer Nothing sock = loop where
           Nothing -> return ()
 socketSyncServer (Just wait) sock = loop where
     loop (Send bs) = do
-        mok <- P.tryIO (timeout wait (send sock bs))
-        case mok of
-          Just True  -> P.respond Sent >>= loop
-          Just False -> return ()
-          Nothing    -> P.throw ex
+        m <- P.tryIO (timeout wait (send sock bs))
+        case m of
+          Just () -> P.respond Sent >>= loop
+          Nothing -> P.throw ex
     loop (Receive nbytes) = do
         mmbs <- P.tryIO (timeout wait (recv sock nbytes))
         case mmbs of
@@ -93,7 +92,8 @@ socketSyncServer (Just wait) sock = loop where
 -- take more time that such timeout, then throw a 'Timeout' exception in
 -- the 'P.ExceptionP' proxy transformer.
 --
--- If the remote peer closes its side of the connection, this proxy returns.
+-- This proxy returns if EOF is received or the remote end closes its side of
+-- the connection while we are trying to read from it.
 socketSyncProxy
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -102,8 +102,8 @@ socketSyncProxy
   -> (P.ExceptionP p) a' B.ByteString (Request a') Response P.SafeIO ()
 socketSyncProxy Nothing sock = loop where
     loop (Send a') = do
-        ok <- P.tryIO . send sock =<< P.request a'
-        when ok (P.respond Sent >>= loop)
+        P.tryIO . send sock =<< P.request a'
+        P.respond Sent >>= loop
     loop (Receive nbytes) = do
         mbs <- P.tryIO (recv sock nbytes)
         case mbs of
@@ -111,12 +111,10 @@ socketSyncProxy Nothing sock = loop where
           Nothing -> return ()
 socketSyncProxy (Just wait) sock = loop where
     loop (Send a') = do
-        bs <- P.request a'
-        mok <- P.tryIO (timeout wait (send sock bs))
-        case mok of
-          Just True  -> P.respond Sent >>= loop
-          Just False -> return ()
-          Nothing    -> P.throw ex
+        m <- P.tryIO . timeout wait . send sock =<< P.request a'
+        case m of
+          Just () -> P.respond Sent >>= loop
+          Nothing -> P.throw ex
     loop (Receive nbytes) = do
         mmbs <- P.tryIO (timeout wait (recv sock nbytes))
         case mmbs of
