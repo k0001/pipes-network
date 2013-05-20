@@ -32,14 +32,13 @@ instance E.Exception Timeout where
 
 -- | Read up to a limited number of bytes from a socket.
 --
--- Returns `Nothing` if the remote end closed the connection (“Broken Pipe”) or
--- EOF was reached.
+-- Returns `Nothing` if the remote end closed the connection or EOF was reached.
 recv :: NS.Socket -> Int -> IO (Maybe B.ByteString)
-recv sock nbytes =
-    E.handle (\Eg.IOError{Eg.ioe_type=Eg.ResourceVanished} -> return Nothing)
-             (do bs <- Network.Socket.ByteString.recv sock nbytes
-                 if B.null bs then return Nothing
-                              else return (Just bs))
+recv sock nbytes = do
+     bs <- Network.Socket.ByteString.recv sock nbytes
+     if B.null bs
+        then return Nothing
+        else return (Just bs)
 {-# INLINE recv #-}
 
 -- | Writes the given bytes to the socket.
