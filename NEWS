@@ -1,3 +1,9 @@
+# Version HEAD
+
+* FIX: `acceptFork` now properly closes the connection socket, even in
+  case of asynchronous exceptions.
+
+
 # Version 0.4.0.0
 
 * Do not handle “Broken Pipe” errors on the `*Write*D` proxies anymore.
