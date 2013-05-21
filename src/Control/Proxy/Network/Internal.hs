@@ -15,7 +15,6 @@ module Control.Proxy.Network.Internal (
 import qualified Data.ByteString               as B
 import qualified Control.Exception             as E
 import           Data.Typeable                 (Typeable)
-import qualified GHC.IO.Exception              as Eg
 import qualified Network.Socket                as NS
 import qualified Network.Socket.ByteString
 
