@@ -42,8 +42,7 @@ module Control.Proxy.TCP.Safe (
   Timeout(..)
   ) where
 
-import           Control.Concurrent             (forkIO, ThreadId)
-import qualified Control.Exception              as E
+import           Control.Concurrent             (ThreadId)
 import           Control.Monad
 import qualified Control.Proxy                  as P
 import           Control.Proxy.Network.Internal
@@ -257,9 +256,7 @@ acceptFork
                                   -- Takes the connection socket and remote end
                                   -- address.
   -> P.ExceptionP p a' a b' b m ThreadId
-acceptFork morph lsock f = P.hoist morph . P.tryIO $ do
-    client@(csock,_) <- NS.accept lsock
-    forkIO $ E.finally (f client) (NS.sClose csock)
+acceptFork morph lsock k = P.hoist morph . P.tryIO $ S.acceptFork lsock k
 {-# INLINABLE acceptFork #-}
 
 --------------------------------------------------------------------------------
@@ -431,4 +428,5 @@ socketWriteD (Just wait) sock = loop where
         Nothing -> P.throw ex
     ex = Timeout $ "socketWriteD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteD #-}
+
 
