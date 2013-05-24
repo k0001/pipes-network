@@ -46,9 +46,7 @@ library
         transformers   (>=0.2 && <0.4)
     exposed-modules:
         Control.Proxy.TCP
-        Control.Proxy.TCP.Sync
         Control.Proxy.TCP.Safe
-        Control.Proxy.TCP.Safe.Sync
     other-modules:
         Control.Proxy.Network.Internal
     ghc-options: -Wall -fno-warn-unused-do-bind
