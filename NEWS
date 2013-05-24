@@ -1,4 +1,4 @@
-# Version HEAD
+# Version 0.5.0.0
 
  * Removed `Control.Proxy.TCP.Sync` and `Control.Proxy.TCP.Safe.Sync`.
 
