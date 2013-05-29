@@ -19,13 +19,13 @@ description:
   .
   This package is organized using the following namespaces:
   .
-  * "Control.Proxy.TCP" exports @pipes@ proxies and functions to deal with TCP
-  connections. Such proxies don't acquire nor release new resources within a
-  proxy pipeline.
+  * "Control.Proxy.TCP" exports 'Control.Proxy.Proxy's and functions for
+  establishing and using TCP connections.
   .
-  * "Control.Proxy.TCP.Safe" exports @pipes-safe@ proxies and functions to deal
-  with TCP connections. Such proxies may safely acquire and release resources
-  within a pipeline, using the facilities provided by the @pipes-safe@ package.
+  * "Control.Proxy.TCP.Safe" is similar to "Control.Proxy.TCP", except
+  the exported 'Control.Proxy.Proxy's themselves can obtain new network
+  resources safely by using the facilities providied by the @pipes-safe@
+  package.
   .
   See the @NEWS@ file in the source distribution to learn about any
   important changes between version.
