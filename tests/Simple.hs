@@ -5,21 +5,22 @@ module Main where
 
 import           Control.Concurrent             (forkIO, threadDelay)
 import           Control.Concurrent.MVar        (newEmptyMVar, putMVar, takeMVar)
-import qualified Control.Exception       as E
-import qualified Data.ByteString.Char8   as B
-import qualified Network.Socket          as NS
+import qualified Control.Exception              as E
+import qualified Data.ByteString.Char8          as B
+import qualified Network.Socket                 as NS
 import           Test.Framework                 (Test, defaultMain, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (Assertion, (@=?))
-import           Control.Proxy           ((>->))
-import qualified Control.Proxy           as P
-import qualified Control.Proxy.Safe      as P
-import qualified Control.Proxy.TCP       as T
-import qualified Control.Proxy.TCP.Safe  as T'
+import           Control.Proxy                  ((>->))
+import qualified Control.Proxy                  as P
+import qualified Control.Proxy.Safe             as P
+import qualified Control.Proxy.TCP              as T
+import qualified Control.Proxy.TCP.Safe         as T'
+import qualified Control.Proxy.Trans.Writer     as P
 
 host1  = "127.0.0.1"                        :: NS.HostName
 host1p = T.Host host1                       :: T.HostPreference
-ports  = fmap show [14000..14010]           :: [NS.ServiceName]
+ports  = fmap show [14000..14010::Int]      :: [NS.ServiceName]
 msg1   = take 1000 $ cycle ["Hell","o\r\n"] :: [B.ByteString]
 msg1b  = B.concat msg1                      :: B.ByteString
 
@@ -33,34 +34,22 @@ msg1b  = B.concat msg1                      :: B.ByteString
 connectAndRead :: NS.HostName -> NS.ServiceName -> IO [B.ByteString]
 connectAndRead host port = do
     T.connect host port $ \(csock, _caddr) -> do
-       let p = P.raiseK (T.socketReadS 4096 csock) >-> P.toListD
-       fmap snd $ P.runWriterT . P.runProxy $ p
---     let p = P.raiseK (T'.connectReadS Nothing 4096 host port) >-> P.toListD
---     (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ p
---     case eex of
---       Left ex  -> E.throw ex
---       Right () -> return out
+       let p = T.socketReadS 4096 csock >-> P.toListD
+       fmap snd . P.runProxy . P.runWriterK $ p
 
 -- tested by 'test_listen_accept_socketReadS_then_connect_socketWriteD'
 connectAndWrite :: NS.HostName -> NS.ServiceName -> [B.ByteString] -> IO ()
 connectAndWrite host port msg = do
     T.connect host port $ \(csock, _caddr) -> do
        P.runProxy $ P.fromListS msg >-> T.socketWriteD csock
---    let p = P.fromListS msg >-> T'.connectWriteD Nothing host1 port
---    P.runSafeIO . P.runProxy .P.runEitherK $ p
 
 -- tested by 'test_listen_accept_socketWriteD_then_connect_socketReadD'
 serveOnceAndRead :: T.HostPreference -> NS.ServiceName -> IO [B.ByteString]
 serveOnceAndRead hp port = do
     T.listen hp port $ \(lsock, _laddr) -> do
        T.accept lsock $ \(csock, _caddr) -> do
-         let p = P.raiseK (T.socketReadS 4096 csock) >-> P.toListD
-         fmap snd $ P.runWriterT . P.runProxy $ p
---    let p = P.raiseK (T'.serveReadS Nothing 4096 host1p port) >-> P.toListD
---    (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ p
---    case eex of
---      Left ex  -> E.throw ex
---      Right () -> return out
+         let p = T.socketReadS 4096 csock >-> P.toListD
+         fmap snd . P.runProxy . P.runWriterK $ p
 
 -- tested by 'test_listen_accept_socketWriteD_then_connect_socketReadD'
 serveOnceAndWrite :: T.HostPreference -> NS.ServiceName -> [B.ByteString] -> IO ()
@@ -68,8 +57,6 @@ serveOnceAndWrite hp port msg = do
     T.listen hp port $ \(lsock, _laddr) -> do
        T.accept lsock $ \(csock, _caddr) -> do
          P.runProxy $ P.fromListS msg >-> T.socketWriteD csock
---    let p = P.fromListS msg >-> T'.serveWriteD Nothing host1p port
---    P.runSafeIO . P.runProxy .P.runEitherK $ p
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
 -- Note: In all the tests below we wait a bit before starting the
@@ -101,7 +88,8 @@ test_safe_serveWriteD = do
     let port = ports !! 2
         serveOnceAndWrite' = do
           let p = P.fromListS msg1 >-> T'.serveWriteD Nothing host1p port
-          P.runSafeIO . P.runProxy .P.runEitherK $ p
+          eu <- P.runSafeIO . P.runProxy . P.runEitherK . P.runSafeK id $ p
+          either E.throwIO return eu
     forkIO serveOnceAndWrite'
     threadDelay waitTime
     out <- connectAndRead host1 port
@@ -111,8 +99,9 @@ test_safe_serveReadS :: Assertion
 test_safe_serveReadS = do
     let port = ports !! 3
         serveOnceAndRead' = do
-          let p = P.raiseK (T'.serveReadS Nothing 4096 host1p port) >-> P.toListD
-          (eex,out) <- P.trySafeIO . P.runWriterT . P.runProxy .P.runEitherK $ p
+          let p = T'.serveReadS Nothing 4096 host1p port >-> P.liftP . P.toListD
+          (eex,out) <- P.runSafeIO . P.runProxy . P.runWriterK . P.runEitherK
+                                   . P.runSafeK id $ p
           case eex of
             Left ex  -> E.throw ex
             Right () -> return out

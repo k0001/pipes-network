@@ -3,7 +3,7 @@
 -- | This module exports functions that allow you to safely use 'NS.Socket'
 -- resources within a 'P.Proxy' pipeline, possibly acquiring and releasing such
 -- resources within the pipeline itself, using the facilities provided by
--- 'P.ExceptionP' from the @pipes-safe@ library.
+-- 'P.SafeP' from the @pipes-safe@ library.
 --
 -- Instead, if just want to use resources already acquired or released outside
 -- the pipeline, then you could use the simpler functions exported by
@@ -81,11 +81,11 @@ connect
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.HostName                   -- ^Server hostname.
   -> NS.ServiceName                -- ^Server service port.
-  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+  -> ((NS.Socket, NS.SockAddr) -> P.SafeP p a' a b' b m r)
                                    -- ^Computation taking the
                                    -- communication socket and the server
                                    -- address.
-  -> P.ExceptionP p a' a b' b m r
+  -> P.SafeP p a' a b' b m r
 connect morph host port =
     P.bracket morph (S.connectSock host port) (NS.sClose . fst)
 
@@ -104,7 +104,7 @@ connect morph host port =
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- 'P.SafeP' proxy transformer.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -112,7 +112,8 @@ connect morph host port =
 -- prints whatever is received from a single TCP connection to a given server
 -- listening locally on port 9000, in chunks of up to 4096 bytes:
 --
--- >>> runSafeIO . runProxy . runEitherK $ connectReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
+-- >>> runSafeIO . runProxy . runEitherK . runSafeK id $
+-- >>>     connectReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 connectReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -122,7 +123,7 @@ connectReadS
                         -- received data. Try using @4096@ if you don't care.
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
-  -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
+  -> () -> P.Producer (P.SafeP p) B.ByteString P.SafeIO ()
 connectReadS mwait nbytes host port () = do
    connect id host port $ \(csock,_) -> do
      socketReadS mwait nbytes csock ()
@@ -134,7 +135,7 @@ connectReadS mwait nbytes host port () = do
 --
 -- If an optional timeout is given and sending data to the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- 'P.SafeP' proxy transformer.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -142,13 +143,14 @@ connectReadS mwait nbytes host port () = do
 -- greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> connectWriteD Nothing "127.0.0.1" "9000"
+-- >>> runSafeIO . runProxy . runEitherK . runSafeK id $
+-- >>>     fromListS ["He","llo\r\n"] >-> connectWriteD Nothing "127.0.0.1" "9000"
 connectWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
+  -> x -> (P.SafeP p) x B.ByteString x B.ByteString P.SafeIO r
 connectWriteD mwait hp port x = do
    connect id hp port $ \(csock,_) ->
      socketWriteD mwait csock x
@@ -191,7 +193,7 @@ serve
                                    -- once an incoming connection is accepted.
                                    -- Takes the connection socket and remote end
                                    -- address.
-  -> P.ExceptionP p a' a b' b m r
+  -> P.SafeP p a' a b' b m r
 serve morph hp port k = do
    listen morph hp port $ \(lsock,_) -> do
      forever $ acceptFork morph lsock k
@@ -214,10 +216,10 @@ listen
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> S.HostPreference              -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
-  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+  -> ((NS.Socket, NS.SockAddr) -> P.SafeP p a' a b' b m r)
                                    -- ^Computation taking the listening
                                    -- socket and the address it's bound to.
-  -> P.ExceptionP p a' a b' b m r
+  -> P.SafeP p a' a b' b m r
 listen morph hp port = P.bracket morph listen' (NS.sClose . fst)
   where
     listen' = do x@(bsock,_) <- S.bindSock hp port
@@ -233,11 +235,11 @@ accept
   :: (P.Proxy p, Monad m)
   => (forall x. P.SafeIO x -> m x) -- ^Monad morphism.
   -> NS.Socket                     -- ^Listening and bound socket.
-  -> ((NS.Socket, NS.SockAddr) -> P.ExceptionP p a' a b' b m r)
+  -> ((NS.Socket, NS.SockAddr) -> P.SafeP p a' a b' b m r)
                                    -- ^Computation to run once an incoming
                                    -- connection is accepted. Takes the
                                    -- connection socket and remote end address.
-  -> P.ExceptionP p a' a b' b m r
+  -> P.SafeP p a' a b' b m r
 accept morph lsock k = do
     conn@(csock,_) <- P.hoist morph . P.tryIO $ NS.accept lsock
     P.finally morph (NS.sClose csock) (k conn)
@@ -255,7 +257,7 @@ acceptFork
                                   -- once an incoming connection is accepted.
                                   -- Takes the connection socket and remote end
                                   -- address.
-  -> P.ExceptionP p a' a b' b m ThreadId
+  -> P.SafeP p a' a b' b m ThreadId
 acceptFork morph lsock k = P.hoist morph . P.tryIO $ S.acceptFork lsock k
 {-# INLINABLE acceptFork #-}
 
@@ -274,7 +276,7 @@ acceptFork morph lsock k = P.hoist morph . P.tryIO $ S.acceptFork lsock k
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- 'P.SafeP' proxy transformer.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -289,7 +291,8 @@ acceptFork morph lsock k = P.hoist morph . P.tryIO $ S.acceptFork lsock k
 -- chunks of up to 4096 bytes.
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeIO . runProxy . runEitherK $ serveReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
+-- >>> runSafeIO . runProxy . runEitherK . runSafeK id $
+-- >>>     serveReadS Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 serveReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
@@ -299,7 +302,7 @@ serveReadS
                         -- received data. Try using @4096@ if you don't care.
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
-  -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
+  -> () -> P.Producer (P.SafeP p) B.ByteString P.SafeIO ()
 serveReadS mwait nbytes hp port () = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
@@ -313,7 +316,7 @@ serveReadS mwait nbytes hp port () = do
 --
 -- If an optional timeout is given and sending data to the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- 'P.SafeP' proxy transformer.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
@@ -322,13 +325,14 @@ serveReadS mwait nbytes hp port () = do
 -- greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> serveWriteD Nothing "127.0.0.1" "9000"
+-- >>> runSafeIO . runProxy . runEitherK . runSafeK id $
+-- >>>     fromListS ["He","llo\r\n"] >-> serveWriteD Nothing "127.0.0.1" "9000"
 serveWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
+  -> x -> (P.SafeP p) x B.ByteString x B.ByteString P.SafeIO r
 serveWriteD mwait hp port x = do
    listen id hp port $ \(lsock,_) -> do
      accept id lsock $ \(csock,_) -> do
@@ -347,7 +351,7 @@ serveWriteD mwait hp port x = do
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- 'P.SafeP' proxy transformer.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -361,7 +365,7 @@ socketReadS
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
-  -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
+  -> () -> P.Producer (P.SafeP p) B.ByteString P.SafeIO ()
 socketReadS Nothing nbytes sock () = loop where
     loop = do
       mbs <- P.tryIO (recv sock nbytes)
@@ -384,7 +388,7 @@ nsocketReadS
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> Int -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
+  -> Int -> P.Server (P.SafeP p) Int B.ByteString P.SafeIO ()
 nsocketReadS Nothing sock = loop where
     loop nbytes = do
       mbs <- P.tryIO (recv sock nbytes)
@@ -406,14 +410,14 @@ nsocketReadS (Just wait) sock = loop where
 --
 -- If an optional timeout is given and sending data to the remote end takes
 -- more time that such timeout, then throw a 'Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- 'P.SafeP' proxy transformer.
 --
 -- Requests from downstream are forwarded upstream.
 socketWriteD
   :: P.Proxy p
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> (P.ExceptionP p) x B.ByteString x B.ByteString P.SafeIO r
+  -> x -> (P.SafeP p) x B.ByteString x B.ByteString P.SafeIO r
 socketWriteD Nothing sock = loop where
     loop x = do
       a <- P.request x
