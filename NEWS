@@ -1,6 +1,11 @@
+# Version HEAD
+
+* Re-export `Network.Socket.withSocketsDo`.
+
+
 # Version 0.5.0.0
 
- * Removed `Control.Proxy.TCP.Sync` and `Control.Proxy.TCP.Safe.Sync`.
+* Removed `Control.Proxy.TCP.Sync` and `Control.Proxy.TCP.Safe.Sync`.
 
 
 # Version 0.4.0.1

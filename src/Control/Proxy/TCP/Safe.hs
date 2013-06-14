@@ -66,20 +66,24 @@ import           System.Timeout                 (timeout)
 -- once, right at the beginning of your program. That is, change your program's
 -- 'main' function from:
 --
--- > main = do
--- >   print "Hello world"
--- >   -- rest of the program...
+-- @
+-- main = do
+--   print \"Hello world\"
+--   -- rest of the program...
+-- @
 --
 -- To:
 --
--- > main = withSocketsDo $ do
--- >   print "Hello world"
--- >   -- rest of the program...
+-- @
+-- main = 'NS.withSocketsDo' $ do
+--   print \"Hello world\"
+--   -- rest of the program...
+-- @
 --
 -- If you don't do this, your networking code won't work and you will get many
 -- unexpected errors at runtime. If you use an operating system other than
 -- Windows then you don't need to do this, but it is harmless to do it, so it's
--- recommended that you do, for portability reasons.
+-- recommended that you do for portability reasons.
 
 --------------------------------------------------------------------------------
 
@@ -87,11 +91,13 @@ import           System.Timeout                 (timeout)
 --
 -- Here's how you could run a TCP client:
 --
--- > connect "www.example.org" "80" $ \(connectionSocket, remoteAddr) -> do
--- >   tryIO . putStrLn $ "Connection established to " ++ show remoteAddr
--- >   -- now you may use connectionSocket as you please within this scope.
--- >   -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
--- >   -- proxies explained below.
+-- @
+-- 'connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
+--   putStrLn $ \"Connection established to \" ++ show remoteAddr
+--   -- Now you may use connectionSocket as you please within this scope,
+--   -- possibly using 'socketReadS', 'socketWriteD' or similar proxies
+--   -- explained below.
+-- @
 --
 -- You might instead prefer the simpler but less general solutions offered by
 -- 'connectReadS' and 'connectWriteD', so check those too.
@@ -188,11 +194,13 @@ connectWriteD mwait hp port x = do
 -- Here's how you can run a TCP server that handles in different threads each
 -- incoming connection to port @8000@ at IPv4 address @127.0.0.1@:
 --
--- > serve (Host "127.0.0.1") "8000" $ \(connectionSocket, remoteAddr) -> do
--- >   tryIO . putStrLn $ "TCP connection established from " ++ show remoteAddr
--- >   -- now you may use connectionSocket as you please within this scope.
--- >   -- possibly with any of the socketReadS, nsocketReadS or socketWriteD
--- >   -- proxies explained below.
+-- @
+-- 'serve' ('Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
+--   putStrLn $ \"TCP connection established from \" ++ show remoteAddr
+--   -- Now you may use connectionSocket as you please within this scope,
+--   -- possibly using 'socketReadS', 'socketWriteD' or similar proxies
+--   -- explained below.
+-- @
 --
 -- You might instead prefer the simpler but less general solutions offered by
 -- 'serveReadS' and 'serveWriteD', so check those too. On the other hand,
