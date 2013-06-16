@@ -2,6 +2,8 @@
 
 * Re-export `Network.Socket.withSocketsDo`.
 
+* Use TCP `send` and `recv` as eported by network-simple-0.2.1.0.
+
 
 # Version 0.5.0.0
 
