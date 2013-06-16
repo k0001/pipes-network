@@ -88,7 +88,7 @@ import           System.Timeout                 (timeout)
 -- Here's how you could run a TCP client:
 --
 -- @
--- 'connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
+-- 'S.connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"Connection established to \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
 --   -- possibly using 'socketReadS', 'socketWriteD' or similar proxies
@@ -103,7 +103,7 @@ import           System.Timeout                 (timeout)
 -- incoming connection to port @8000@ at IPv4 address @127.0.0.1@:
 --
 -- @
--- 'serve' ('Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
+-- 'S.serve' ('S.Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"TCP connection established from \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
 --   -- possibly using 'socketReadS', 'socketWriteD' or similar proxies
