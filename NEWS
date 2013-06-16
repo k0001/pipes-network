@@ -1,4 +1,4 @@
-# Version HEAD
+# Version 0.5.1.0
 
 * Re-export `Network.Socket.withSocketsDo`.
 
