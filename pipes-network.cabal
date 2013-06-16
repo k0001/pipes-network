@@ -47,8 +47,6 @@ library
     exposed-modules:
         Control.Proxy.TCP
         Control.Proxy.TCP.Safe
-    other-modules:
-        Control.Proxy.Network.Internal
     ghc-options: -Wall -fno-warn-unused-do-bind
 
 test-suite simple

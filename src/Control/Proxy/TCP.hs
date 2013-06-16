@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 -- | This module exports functions that allow you to safely use 'NS.Socket'
 -- resources acquired and released outside a 'P.Proxy' pipeline.
 --
@@ -44,15 +46,17 @@ module Control.Proxy.TCP (
   , Timeout(..)
   ) where
 
+import qualified Control.Exception              as E
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy                  as P
-import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Trans.Either     as PE
 import qualified Data.ByteString                as B
+import           Data.Data                      (Data,Typeable)
 import           Data.Monoid
 import qualified Network.Socket                 as NS
 import qualified Network.Simple.TCP             as S
 import           System.Timeout                 (timeout)
+
 
 --------------------------------------------------------------------------------
 
@@ -236,4 +240,11 @@ socketWriteTimeoutD wait sock = loop where
     ex = Timeout $ "socketWriteTimeoutD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteTimeoutD #-}
 
+--------------------------------------------------------------------------------
 
+-- |Exception thrown when a time limit has elapsed.
+data Timeout
+  = Timeout String -- ^Timeouted with an additional explanatory message.
+  deriving (Eq, Show, Data, Typeable)
+
+instance E.Exception Timeout where

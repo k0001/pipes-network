@@ -50,8 +50,8 @@ module Control.Proxy.TCP.Safe (
 import           Control.Concurrent             (ThreadId)
 import           Control.Monad
 import qualified Control.Proxy                  as P
-import           Control.Proxy.Network.Internal
 import qualified Control.Proxy.Safe             as P
+import           Control.Proxy.TCP              (Timeout(..))
 import qualified Data.ByteString                as B
 import           Data.Monoid
 import qualified Network.Socket                 as NS
