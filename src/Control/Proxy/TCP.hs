@@ -46,8 +46,8 @@ module Control.Proxy.TCP (
 
 import           Control.Monad.Trans.Class
 import qualified Control.Proxy                  as P
-import qualified Control.Proxy.Trans.Either     as PE
 import           Control.Proxy.Network.Internal
+import qualified Control.Proxy.Trans.Either     as PE
 import qualified Data.ByteString                as B
 import           Data.Monoid
 import qualified Network.Socket                 as NS
@@ -136,7 +136,7 @@ socketReadS
   -> () -> P.Producer p B.ByteString IO ()
 socketReadS nbytes sock () = P.runIdentityP loop where
     loop = do
-      mbs <- lift (recv sock nbytes)
+      mbs <- lift (S.recv sock nbytes)
       case mbs of
         Just bs -> P.respond bs >> loop
         Nothing -> return ()
@@ -150,7 +150,7 @@ nsocketReadS
   -> Int -> P.Server p Int B.ByteString IO ()
 nsocketReadS sock = P.runIdentityK loop where
     loop nbytes = do
-      mbs <- lift (recv sock nbytes)
+      mbs <- lift (S.recv sock nbytes)
       case mbs of
         Just bs -> P.respond bs >>= loop
         Nothing -> return ()
@@ -167,7 +167,7 @@ socketWriteD
 socketWriteD sock = P.runIdentityK loop where
     loop x = do
       a <- P.request x
-      lift (send sock a)
+      lift (S.send sock a)
       P.respond a >>= loop
 {-# INLINABLE socketWriteD #-}
 
@@ -192,7 +192,7 @@ socketReadTimeoutS
   -> () -> P.Producer (PE.EitherP Timeout p) B.ByteString IO ()
 socketReadTimeoutS wait nbytes sock () = loop where
     loop = do
-      mmbs <- lift (timeout wait (recv sock nbytes))
+      mmbs <- lift (timeout wait (S.recv sock nbytes))
       case mmbs of
         Just (Just bs) -> P.respond bs >> loop
         Just Nothing   -> return ()
@@ -210,7 +210,7 @@ nsocketReadTimeoutS
   -> Int -> P.Server (PE.EitherP Timeout p) Int B.ByteString IO ()
 nsocketReadTimeoutS wait sock = loop where
     loop nbytes = do
-      mmbs <- lift (timeout wait (recv sock nbytes))
+      mmbs <- lift (timeout wait (S.recv sock nbytes))
       case mmbs of
         Just (Just bs) -> P.respond bs >>= loop
         Just Nothing   -> return ()
@@ -229,7 +229,7 @@ socketWriteTimeoutD
 socketWriteTimeoutD wait sock = loop where
     loop x = do
       a <- P.request x
-      m <- lift (timeout wait (send sock a))
+      m <- lift (timeout wait (S.send sock a))
       case m of
         Just () -> P.respond a >>= loop
         Nothing -> PE.throw ex

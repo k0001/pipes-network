@@ -400,13 +400,13 @@ socketReadS
   -> () -> P.Producer (P.ExceptionP p) B.ByteString P.SafeIO ()
 socketReadS Nothing nbytes sock () = loop where
     loop = do
-      mbs <- P.tryIO (recv sock nbytes)
+      mbs <- P.tryIO (S.recv sock nbytes)
       case mbs of
         Just bs -> P.respond bs >> loop
         Nothing -> return ()
 socketReadS (Just wait) nbytes sock () = loop where
     loop = do
-      mmbs <- P.tryIO (timeout wait (recv sock nbytes))
+      mmbs <- P.tryIO (timeout wait (S.recv sock nbytes))
       case mmbs of
         Just (Just bs) -> P.respond bs >> loop
         Just Nothing   -> return ()
@@ -423,13 +423,13 @@ nsocketReadS
   -> Int -> P.Server (P.ExceptionP p) Int B.ByteString P.SafeIO ()
 nsocketReadS Nothing sock = loop where
     loop nbytes = do
-      mbs <- P.tryIO (recv sock nbytes)
+      mbs <- P.tryIO (S.recv sock nbytes)
       case mbs of
         Just bs -> P.respond bs >>= loop
         Nothing -> return ()
 nsocketReadS (Just wait) sock = loop where
     loop nbytes = do
-      mbs <- P.tryIO (timeout wait (recv sock nbytes))
+      mbs <- P.tryIO (timeout wait (S.recv sock nbytes))
       case mbs of
         Just (Just bs) -> P.respond bs >>= loop
         Just Nothing   -> return ()
@@ -453,12 +453,12 @@ socketWriteD
 socketWriteD Nothing sock = loop where
     loop x = do
       a <- P.request x
-      P.tryIO (send sock a)
+      P.tryIO (S.send sock a)
       P.respond a >>= loop
 socketWriteD (Just wait) sock = loop where
     loop x = do
       a <- P.request x
-      m <- P.tryIO (timeout wait (send sock a))
+      m <- P.tryIO (timeout wait (S.send sock a))
       case m of
         Just () -> P.respond a >>= loop
         Nothing -> P.throw ex
