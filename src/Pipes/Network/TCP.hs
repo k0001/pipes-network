@@ -156,18 +156,11 @@ nsocketReadS sock = loop where
         Nothing -> return ()
 {-# INLINABLE nsocketReadS #-}
 
--- | Sends to the remote end the bytes received from upstream, then forwards
--- such same bytes downstream.
---
--- Requests from downstream are forwarded upstream.
+-- | Sends to the remote end the bytes received from upstream.
 socketWriteD
   :: NS.Socket          -- ^Connected socket.
-  -> x -> Proxy x B.ByteString x B.ByteString IO r
-socketWriteD sock = loop where
-    loop x = do
-      a <- request x
-      lift (S.send sock a)
-      respond a >>= loop
+  -> () -> Consumer B.ByteString IO r
+socketWriteD sock = \() -> forever $ lift . S.send sock =<< request ()
 {-# INLINABLE socketWriteD #-}
 
 --------------------------------------------------------------------------------
@@ -221,13 +214,12 @@ nsocketReadTimeoutS wait sock = loop where
 socketWriteTimeoutD
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> Proxy x B.ByteString x B.ByteString (EitherT I.Timeout IO) r
-socketWriteTimeoutD wait sock = loop where
-    loop x = do
-      a <- request x
-      m <- lift . lift $ timeout wait (S.send sock a)
+  -> () -> Consumer B.ByteString (EitherT I.Timeout IO) r
+socketWriteTimeoutD wait sock = \() -> loop where
+    loop = do
+      m <- lift . lift . timeout wait . S.send sock =<< request ()
       case m of
-        Just () -> respond a >>= loop
+        Just () -> loop
         Nothing -> lift (left ex)
     ex = I.Timeout $ "socketWriteTimeoutD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteTimeoutD #-}

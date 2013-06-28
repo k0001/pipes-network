@@ -3,7 +3,7 @@
 -- | This module exports functions that allow you to safely use 'NS.Socket'
 -- resources within a 'P.Proxy' pipeline, possibly acquiring and releasing such
 -- resources within the pipeline itself, using the facilities provided by
--- 'P.ExceptionP' from the @pipes-safe@ library.
+-- the @pipes-safe@ library.
 --
 -- Instead, if just want to use resources already acquired or released outside
 -- the pipeline, then you could use the simpler functions exported by
@@ -135,8 +135,7 @@ connect host port = Ps.bracket (S.connectSock host port) (NS.sClose . fst)
 -- remote end.
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- more time that such timeout, then throw a 'I.Timeout' exception.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -160,13 +159,10 @@ connectReadS mwait nbytes host port () = do
      socketReadS mwait nbytes csock ()
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
--- upstream, then forwards such same bytes downstream.
---
--- Requests from downstream are forwarded upstream.
+-- upstream.
 --
 -- If an optional timeout is given and sending data to the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- more time that such timeout, then throw a 'I.Timeout' exception.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -180,10 +176,10 @@ connectWriteD
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
-  -> x -> Proxy x B.ByteString x B.ByteString m r
-connectWriteD mwait hp port x = do
+  -> () -> Consumer B.ByteString m r
+connectWriteD mwait hp port = \() -> do
    connect hp port $ \(csock,_) ->
-     socketWriteD mwait csock x
+     socketWriteD mwait csock ()
 
 --------------------------------------------------------------------------------
 
@@ -336,14 +332,10 @@ serveReadS mwait nbytes hp port () = do
        socketReadS mwait nbytes csock ()
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
--- end the bytes received from upstream, then forwards such sames bytes
--- downstream.
---
--- Requests from downstream are forwarded upstream.
+-- end the bytes received from upstream.
 --
 -- If an optional timeout is given and sending data to the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- more time that such timeout, then throw a 'I.Timeout' exception.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
@@ -358,11 +350,11 @@ serveWriteD
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
-  -> x -> Proxy x B.ByteString x B.ByteString m r
-serveWriteD mwait hp port x = do
+  -> () -> Consumer B.ByteString m r
+serveWriteD mwait hp port = \() -> do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       socketWriteD mwait csock x
+       socketWriteD mwait csock ()
 
 --------------------------------------------------------------------------------
 
@@ -431,31 +423,23 @@ nsocketReadS (Just wait) sock = loop where
     ex = I.Timeout $ "nsocketReadS: " <> show wait <> " microseconds."
 {-# INLINABLE nsocketReadS #-}
 
--- | Sends to the remote end the bytes received from upstream, then forwards
--- such same bytes downstream.
+-- | Sends to the remote end the bytes received from upstream.
 --
 -- If an optional timeout is given and sending data to the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
---
--- Requests from downstream are forwarded upstream.
+-- more time that such timeout, then throw a 'I.Timeout' exception.
 socketWriteD
   :: Ps.MonadSafe m
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> x -> Proxy x B.ByteString x B.ByteString m r
-socketWriteD Nothing sock = loop where
-    loop x = do
-      a <- request x
-      lift . Ps.tryIO $ S.send sock a
-      respond a >>= loop
-socketWriteD (Just wait) sock = loop where
-    loop x = do
-      a <- request x
-      m <- lift . Ps.tryIO $ timeout wait (S.send sock a)
-      case m of
-        Just () -> respond a >>= loop
-        Nothing -> lift (Ps.throw ex)
+  -> () -> Consumer B.ByteString m r
+socketWriteD Nothing sock = \() -> forever $ do
+    lift . Ps.tryIO . S.send sock =<< request ()
+socketWriteD (Just wait) sock = \() -> loop where
+    loop = do
+        m <- lift . Ps.tryIO . timeout wait . S.send sock =<< request ()
+        case m of
+          Just () -> loop
+          Nothing -> lift (Ps.throw ex)
     ex = I.Timeout $ "socketWriteD: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteD #-}
 
