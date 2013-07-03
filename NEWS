@@ -1,3 +1,10 @@
+# Version HEAD
+
+* Upgrade to pipes-4.0.0 and pipes-safe-2.0.0
+
+* `socketWriteD` and other `*Write*D` proxies are now Consumers.
+
+
 # Version 0.5.1.0
 
 * Re-export `Network.Socket.withSocketsDo`.
