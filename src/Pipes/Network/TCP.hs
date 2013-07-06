@@ -28,14 +28,14 @@ module Pipes.Network.TCP (
 
   -- * Socket streams
   -- $socket-streaming
-  , socketReadS
-  , nsocketReadS
-  , socketWriteD
+  , socketRead
+  , nsocketRead
+  , socketWrite
   -- ** Timeouts
   -- $socket-streaming-timeout
-  , socketReadTimeoutS
-  , nsocketReadTimeoutS
-  , socketWriteTimeoutD
+  , socketReadTimeout
+  , nsocketReadTimeout
+  , socketWriteTimeout
 
   -- * Note to Windows users
   -- $windows-users
@@ -93,7 +93,7 @@ import           System.Timeout                 (timeout)
 -- 'S.connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"Connection established to \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'socketReadS', 'socketWriteD' or similar proxies
+--   -- possibly using 'socketRead', 'socketWrite' or similar proxies
 --   -- explained below.
 -- @
 
@@ -108,7 +108,7 @@ import           System.Timeout                 (timeout)
 -- 'S.serve' ('S.Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"TCP connection established from \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'socketReadS', 'socketWriteD' or similar proxies
+--   -- possibly using 'socketRead', 'socketWrite' or similar proxies
 --   -- explained below.
 -- @
 --
@@ -128,40 +128,40 @@ import           System.Timeout                 (timeout)
 --
 -- This proxy returns if the remote peer closes its side of the connection or
 -- EOF is received.
-socketReadS
+socketRead
   :: Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
   -> () -> Producer B.ByteString IO ()
-socketReadS nbytes sock () = loop where
+socketRead nbytes sock () = loop where
     loop = do
       mbs <- lift (S.recv sock nbytes)
       case mbs of
         Just bs -> respond bs >> loop
         Nothing -> return ()
-{-# INLINABLE socketReadS #-}
+{-# INLINABLE socketRead #-}
 
--- | Just like 'socketReadS', except each request from downstream specifies the
+-- | Just like 'socketRead', except each request from downstream specifies the
 -- maximum number of bytes to receive.
-nsocketReadS
+nsocketRead
   :: NS.Socket          -- ^Connected socket.
   -> Int -> Server Int B.ByteString IO ()
-nsocketReadS sock = loop where
+nsocketRead sock = loop where
     loop nbytes = do
       mbs <- lift (S.recv sock nbytes)
       case mbs of
         Just bs -> respond bs >>= loop
         Nothing -> return ()
-{-# INLINABLE nsocketReadS #-}
+{-# INLINABLE nsocketRead #-}
 
 -- | Sends to the remote end the bytes received from upstream.
-socketWriteD
+socketWrite
   :: NS.Socket          -- ^Connected socket.
   -> () -> Consumer B.ByteString IO r
-socketWriteD sock = \() -> forever $ lift . S.send sock =<< request ()
-{-# INLINABLE socketWriteD #-}
+socketWrite sock = \() -> forever $ lift . S.send sock =<< request ()
+{-# INLINABLE socketWrite #-}
 
 --------------------------------------------------------------------------------
 
@@ -170,10 +170,10 @@ socketWriteD sock = \() -> forever $ lift . S.send sock =<< request ()
 -- These proxies behave like the similarly named ones above, except support for
 -- timing out the interaction with the remote end is added.
 
--- | Like 'socketReadS', except it throws a 'I.Timeout' exception in the
+-- | Like 'socketRead', except it throws a 'I.Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
 -- more time than specified.
-socketReadTimeoutS
+socketReadTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
@@ -181,45 +181,45 @@ socketReadTimeoutS
                         -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
   -> () -> Producer B.ByteString (EitherT I.Timeout IO) ()
-socketReadTimeoutS wait nbytes sock () = loop where
+socketReadTimeout wait nbytes sock () = loop where
     loop = do
       mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
       case mmbs of
         Just (Just bs) -> respond bs >> loop
         Just Nothing   -> return ()
         Nothing        -> lift (left ex)
-    ex = I.Timeout $ "socketReadTimeoutS: " <> show wait <> " microseconds."
-{-# INLINABLE socketReadTimeoutS #-}
+    ex = I.Timeout $ "socketReadTimeout: " <> show wait <> " microseconds."
+{-# INLINABLE socketReadTimeout #-}
 
--- | Like 'nsocketReadS', except it throws a 'I.Timeout' exception in the
+-- | Like 'nsocketRead', except it throws a 'I.Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
 -- more time than specified.
-nsocketReadTimeoutS
+nsocketReadTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Int -> Server Int B.ByteString (EitherT I.Timeout IO) ()
-nsocketReadTimeoutS wait sock = loop where
+nsocketReadTimeout wait sock = loop where
     loop nbytes = do
       mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
       case mmbs of
         Just (Just bs) -> respond bs >>= loop
         Just Nothing   -> return ()
         Nothing        -> lift (left ex)
-    ex = I.Timeout $ "nsocketReadTimeoutS: " <> show wait <> " microseconds."
-{-# INLINABLE nsocketReadTimeoutS #-}
+    ex = I.Timeout $ "nsocketReadTimeout: " <> show wait <> " microseconds."
+{-# INLINABLE nsocketReadTimeout #-}
 
--- | Like 'socketWriteD', except it throws a 'I.Timeout' exception in the
+-- | Like 'socketWrite', except it throws a 'I.Timeout' exception in the
 -- 'PE.EitherP' proxy transformer if sending data to the remote end takes
 -- more time than specified.
-socketWriteTimeoutD
+socketWriteTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> () -> Consumer B.ByteString (EitherT I.Timeout IO) r
-socketWriteTimeoutD wait sock = \() -> loop where
+socketWriteTimeout wait sock = \() -> loop where
     loop = do
       m <- lift . lift . timeout wait . S.send sock =<< request ()
       case m of
         Just () -> loop
         Nothing -> lift (left ex)
-    ex = I.Timeout $ "socketWriteTimeoutD: " <> show wait <> " microseconds."
-{-# INLINABLE socketWriteTimeoutD #-}
+    ex = I.Timeout $ "socketWriteTimeout: " <> show wait <> " microseconds."
+{-# INLINABLE socketWriteTimeout #-}
