@@ -2,7 +2,9 @@
 
 * Upgrade to pipes-4.0.0 and pipes-safe-2.0.0
 
-* `socketWriteD` and other `*Write*D` proxies are now Consumers.
+* `socketWriteD` and other `*Write*D` proxies are now `Consumer`s.
+
+* Removed the `D` and `S` suffixes from proxies.
 
 
 # Version 0.5.1.0
