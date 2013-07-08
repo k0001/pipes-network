@@ -299,8 +299,7 @@ acceptFork lsock k = Ps.tryIO $ S.acceptFork lsock k
 -- any bytes received from the remote end.
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- more time that such timeout, then throw 'I.Timeout' in 'MonadSafe'.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
@@ -368,8 +367,7 @@ serveWrite mwait hp port = \() -> do
 -- | Receives bytes from the remote end and sends them downstream.
 --
 -- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception in the
--- 'P.ExceptionP' proxy transformer.
+-- more time that such timeout, then throw 'I.Timeout' in 'Ps.MonadSafe'.
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --

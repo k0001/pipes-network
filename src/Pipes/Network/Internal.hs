@@ -9,7 +9,8 @@ module Pipes.Network.Internal (
     Timeout(..)
   ) where
 
-import qualified Control.Exception             as E
+import           Control.Exception             (Exception)
+import           Control.Monad.Trans.Error     (Error)
 import           Data.Data                     (Data, Typeable)
 
 
@@ -18,5 +19,5 @@ data Timeout
   = Timeout String -- ^Timeouted with an additional explanatory message.
   deriving (Eq, Show, Data, Typeable)
 
-instance E.Exception Timeout where
-
+instance Exception Timeout where
+instance Error     Timeout where

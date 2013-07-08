@@ -46,7 +46,7 @@ module Pipes.Network.TCP (
   , I.Timeout(..)
   ) where
 
-import           Control.Monad.Trans.Either     (EitherT, left)
+import qualified Control.Monad.Trans.Error      as E
 import qualified Data.ByteString                as B
 import           Data.Monoid
 import qualified Network.Socket                 as NS
@@ -170,9 +170,9 @@ socketWrite sock = \() -> forever $ lift . S.send sock =<< request ()
 -- These proxies behave like the similarly named ones above, except support for
 -- timing out the interaction with the remote end is added.
 
--- | Like 'socketRead', except it throws a 'I.Timeout' exception in the
--- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
--- more time than specified.
+-- | Like 'socketRead', except it throws 'I.Timeout' in the 'E.ErrorT' monad
+-- transformer if receiving data from the remote end takes more time than
+-- specified.
 socketReadTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> Int                -- ^Maximum number of bytes to receive and send
@@ -180,46 +180,45 @@ socketReadTimeout
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> NS.Socket          -- ^Connected socket.
-  -> () -> Producer B.ByteString (EitherT I.Timeout IO) ()
+  -> () -> Producer B.ByteString (E.ErrorT I.Timeout IO) ()
 socketReadTimeout wait nbytes sock () = loop where
     loop = do
       mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
       case mmbs of
         Just (Just bs) -> respond bs >> loop
         Just Nothing   -> return ()
-        Nothing        -> lift (left ex)
+        Nothing        -> lift (E.throwError ex)
     ex = I.Timeout $ "socketReadTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE socketReadTimeout #-}
 
--- | Like 'nsocketRead', except it throws a 'I.Timeout' exception in the
--- 'PE.EitherP' proxy transformer if receiving data from the remote end takes
--- more time than specified.
+-- | Like 'nsocketRead', except it throws 'I.Timeout' in the 'E.ErrorT' monad
+-- transformer if receiving data from the remote end takes more time than
+-- specified.
 nsocketReadTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> Int -> Server Int B.ByteString (EitherT I.Timeout IO) ()
+  -> Int -> Server Int B.ByteString (E.ErrorT I.Timeout IO) ()
 nsocketReadTimeout wait sock = loop where
     loop nbytes = do
       mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
       case mmbs of
         Just (Just bs) -> respond bs >>= loop
         Just Nothing   -> return ()
-        Nothing        -> lift (left ex)
+        Nothing        -> lift (E.throwError ex)
     ex = I.Timeout $ "nsocketReadTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE nsocketReadTimeout #-}
 
--- | Like 'socketWrite', except it throws a 'I.Timeout' exception in the
--- 'PE.EitherP' proxy transformer if sending data to the remote end takes
--- more time than specified.
+-- | Like 'socketWrite', except it throws 'I.Timeout' in the 'E.ErrorT' monad
+-- transformer if sending data to the remote end takes more time than specified.
 socketWriteTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> () -> Consumer B.ByteString (EitherT I.Timeout IO) r
+  -> () -> Consumer B.ByteString (E.ErrorT I.Timeout IO) r
 socketWriteTimeout wait sock = \() -> loop where
     loop = do
       m <- lift . lift . timeout wait . S.send sock =<< request ()
       case m of
         Just () -> loop
-        Nothing -> lift (left ex)
+        Nothing -> lift (E.throwError ex)
     ex = I.Timeout $ "socketWriteTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteTimeout #-}
