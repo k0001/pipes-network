@@ -6,6 +6,9 @@
 
 * Removed the `D` and `S` suffixes from proxies.
 
+* Use `ErrorT` from the `transformers` package instead of `EitherT` from
+  the `either` package.
+
 
 # Version 0.5.1.0
 
