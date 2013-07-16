@@ -29,12 +29,10 @@ module Pipes.Network.TCP (
   -- * Socket streams
   -- $socket-streaming
   , socketRead
-  , nsocketRead
   , socketWrite
   -- ** Timeouts
   -- $socket-streaming-timeout
   , socketReadTimeout
-  , nsocketReadTimeout
   , socketWriteTimeout
 
   -- * Note to Windows users
@@ -129,38 +127,27 @@ import           System.Timeout                 (timeout)
 -- This proxy returns if the remote peer closes its side of the connection or
 -- EOF is received.
 socketRead
-  :: Int                -- ^Maximum number of bytes to receive and send
+  :: NS.Socket          -- ^Connected socket.
+  -> Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
-  -> NS.Socket          -- ^Connected socket.
-  -> () -> Producer B.ByteString IO ()
-socketRead nbytes sock () = loop where
-    loop = do
+  -> Producer B.ByteString IO ()
+socketRead sock = loop where
+    loop = \nbytes -> do
       mbs <- lift (S.recv sock nbytes)
       case mbs of
-        Just bs -> respond bs >> loop
+        Just bs -> respond bs >> loop nbytes
         Nothing -> return ()
 {-# INLINABLE socketRead #-}
 
--- | Just like 'socketRead', except each request from downstream specifies the
--- maximum number of bytes to receive.
-nsocketRead
-  :: NS.Socket          -- ^Connected socket.
-  -> Int -> Server Int B.ByteString IO ()
-nsocketRead sock = loop where
-    loop nbytes = do
-      mbs <- lift (S.recv sock nbytes)
-      case mbs of
-        Just bs -> respond bs >>= loop
-        Nothing -> return ()
-{-# INLINABLE nsocketRead #-}
 
 -- | Sends to the remote end the bytes received from upstream.
 socketWrite
   :: NS.Socket          -- ^Connected socket.
-  -> () -> Consumer B.ByteString IO r
-socketWrite sock = \() -> forever $ lift . S.send sock =<< request ()
+  -> B.ByteString       -- ^Bytes to send to the remote end.
+  -> Effect' IO ()
+socketWrite sock = lift . S.send sock
 {-# INLINABLE socketWrite #-}
 
 --------------------------------------------------------------------------------
@@ -175,50 +162,34 @@ socketWrite sock = \() -> forever $ lift . S.send sock =<< request ()
 -- specified.
 socketReadTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
+  -> NS.Socket          -- ^Connected socket.
   -> Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
-  -> NS.Socket          -- ^Connected socket.
-  -> () -> Producer B.ByteString (E.ErrorT I.Timeout IO) ()
-socketReadTimeout wait nbytes sock () = loop where
-    loop = do
+  -> Producer B.ByteString (E.ErrorT I.Timeout IO) ()
+socketReadTimeout wait sock = loop where
+    loop = \nbytes -> do
       mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
       case mmbs of
-        Just (Just bs) -> respond bs >> loop
+        Just (Just bs) -> respond bs >> loop nbytes
         Just Nothing   -> return ()
-        Nothing        -> lift (E.throwError ex)
-    ex = I.Timeout $ "socketReadTimeout: " <> show wait <> " microseconds."
+        Nothing        -> lift . E.throwError $
+          I.Timeout $ "socketReadTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE socketReadTimeout #-}
 
--- | Like 'nsocketRead', except it throws 'I.Timeout' in the 'E.ErrorT' monad
--- transformer if receiving data from the remote end takes more time than
--- specified.
-nsocketReadTimeout
-  :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
-  -> NS.Socket          -- ^Connected socket.
-  -> Int -> Server Int B.ByteString (E.ErrorT I.Timeout IO) ()
-nsocketReadTimeout wait sock = loop where
-    loop nbytes = do
-      mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
-      case mmbs of
-        Just (Just bs) -> respond bs >>= loop
-        Just Nothing   -> return ()
-        Nothing        -> lift (E.throwError ex)
-    ex = I.Timeout $ "nsocketReadTimeout: " <> show wait <> " microseconds."
-{-# INLINABLE nsocketReadTimeout #-}
 
 -- | Like 'socketWrite', except it throws 'I.Timeout' in the 'E.ErrorT' monad
 -- transformer if sending data to the remote end takes more time than specified.
 socketWriteTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> () -> Consumer B.ByteString (E.ErrorT I.Timeout IO) r
-socketWriteTimeout wait sock = \() -> loop where
-    loop = do
-      m <- lift . lift . timeout wait . S.send sock =<< request ()
-      case m of
-        Just () -> loop
-        Nothing -> lift (E.throwError ex)
-    ex = I.Timeout $ "socketWriteTimeout: " <> show wait <> " microseconds."
+  -> B.ByteString       -- ^Bytes to send to the remote end.
+  -> Effect' (E.ErrorT I.Timeout IO) ()
+socketWriteTimeout wait sock = \bs -> do
+    m <- lift . lift . timeout wait . S.send sock $ bs
+    case m of
+      Just () -> return ()
+      Nothing -> lift . E.throwError $
+        I.Timeout $ "socketWriteTimeout: " <> show wait <> " microseconds."
 {-# INLINABLE socketWriteTimeout #-}
