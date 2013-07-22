@@ -50,6 +50,7 @@ module Pipes.Network.TCP.Safe (
 import           Control.Concurrent             (ThreadId)
 import           Control.Monad
 import qualified Data.ByteString                as B
+import           Data.Function                  (fix)
 import           Data.Monoid
 import qualified Network.Socket                 as NS
 import qualified Network.Simple.TCP             as S
@@ -153,10 +154,10 @@ connectRead
                         -- received data. Try using @4096@ if you don't care.
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
-  -> () -> Producer B.ByteString m ()
-connectRead mwait nbytes host port () = do
+  -> Producer B.ByteString m ()
+connectRead mwait nbytes host port = do
    connect host port $ \(csock,_) -> do
-     socketRead mwait nbytes csock ()
+     socketRead mwait csock nbytes
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream.
@@ -178,8 +179,8 @@ connectWrite
   -> NS.ServiceName     -- ^Server service port.
   -> () -> Consumer B.ByteString m r
 connectWrite mwait hp port = \() -> do
-   connect hp port $ \(csock,_) ->
-     socketWrite mwait csock ()
+   connect hp port $ \(csock,_) -> do
+     forever $ for (request ()) (socketWrite mwait csock)
 
 --------------------------------------------------------------------------------
 
@@ -328,7 +329,7 @@ serveRead
 serveRead mwait nbytes hp port () = do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       socketRead mwait nbytes csock ()
+       socketRead mwait csock nbytes
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream.
@@ -353,7 +354,7 @@ serveWrite
 serveWrite mwait hp port = \() -> do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       socketWrite mwait csock ()
+       forever $ for (request ()) (socketWrite mwait csock)
 
 --------------------------------------------------------------------------------
 
@@ -376,26 +377,24 @@ serveWrite mwait hp port = \() -> do
 socketRead
   :: Ps.MonadSafe m
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
+  -> NS.Socket          -- ^Connected socket.
   -> Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
-  -> NS.Socket          -- ^Connected socket.
-  -> () -> Producer B.ByteString m ()
-socketRead Nothing nbytes sock () = loop where
-    loop = do
+  -> Producer B.ByteString m ()
+socketRead Nothing sock = \nbytes -> fix $ \loop -> do
       mbs <- lift . Ps.tryIO $ S.recv sock nbytes
       case mbs of
         Just bs -> respond bs >> loop
         Nothing -> return ()
-socketRead (Just wait) nbytes sock () = loop where
-    loop = do
+socketRead (Just wait) sock = \nbytes -> fix $ \loop -> do
       mmbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
       case mmbs of
         Just (Just bs) -> respond bs >> loop
         Just Nothing   -> return ()
-        Nothing        -> lift (Ps.throw ex)
-    ex = I.Timeout $ "socketRead: " <> show wait <> " microseconds."
+        Nothing        -> lift . Ps.throw $
+          I.Timeout $ "socketRead: " <> show wait <> " microseconds."
 {-# INLINABLE socketRead #-}
 
 -- | Just like 'socketRead', except each request from downstream specifies the
@@ -429,16 +428,15 @@ socketWrite
   :: Ps.MonadSafe m
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
-  -> () -> Consumer B.ByteString m r
-socketWrite Nothing sock = \() -> forever $ do
-    lift . Ps.tryIO . S.send sock =<< request ()
-socketWrite (Just wait) sock = \() -> loop where
-    loop = do
-        m <- lift . Ps.tryIO . timeout wait . S.send sock =<< request ()
-        case m of
-          Just () -> loop
-          Nothing -> lift (Ps.throw ex)
-    ex = I.Timeout $ "socketWrite: " <> show wait <> " microseconds."
+  -> B.ByteString       -- ^Bytes to send to the remote end.
+  -> Effect' m ()
+socketWrite Nothing sock = lift . Ps.tryIO . S.send sock
+socketWrite (Just wait) sock = \bs -> do
+    m <- lift . Ps.tryIO . timeout wait $ S.send sock bs
+    case m of
+      Just () -> return ()
+      Nothing -> lift . Ps.throw $
+        I.Timeout $ "socketWrite: " <> show wait <> " microseconds."
 {-# INLINABLE socketWrite #-}
 
 
