@@ -50,6 +50,7 @@ import           Data.Monoid
 import qualified Network.Socket                 as NS
 import qualified Network.Simple.TCP             as S
 import           Pipes
+import           Pipes.Core
 import qualified Pipes.Network.Internal         as I
 import           System.Timeout                 (timeout)
 
