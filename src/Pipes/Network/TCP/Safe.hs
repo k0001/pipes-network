@@ -33,9 +33,9 @@ module Pipes.Network.TCP.Safe (
 
   -- * Socket streams
   -- $socket-streaming
-  socketRead,
-  nsocketRead,
-  socketWrite,
+  recv,
+  recv',
+  send,
 
   -- * Note to Windows users
   -- $windows-users
@@ -97,7 +97,7 @@ import           System.Timeout                 (timeout)
 -- 'connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"Connection established to \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'socketRead', 'socketWrite' or similar proxies
+--   -- possibly using 'recv', 'send' or similar proxies
 --   -- explained below.
 -- @
 --
@@ -158,7 +158,7 @@ connectRead
   -> Producer B.ByteString m ()
 connectRead mwait nbytes host port = do
    connect host port $ \(csock,_) -> do
-     socketRead mwait csock nbytes
+     recv mwait csock nbytes
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream.
@@ -181,7 +181,7 @@ connectWrite
   -> () -> Consumer B.ByteString m r
 connectWrite mwait hp port = \() -> do
    connect hp port $ \(csock,_) -> do
-     forever $ for (request ()) (socketWrite mwait csock)
+     forever $ for (request ()) (send mwait csock)
 
 --------------------------------------------------------------------------------
 
@@ -194,7 +194,7 @@ connectWrite mwait hp port = \() -> do
 -- 'serve' ('Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"TCP connection established from \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'socketRead', 'socketWrite' or similar proxies
+--   -- possibly using 'recv', 'send' or similar proxies
 --   -- explained below.
 -- @
 --
@@ -330,7 +330,7 @@ serveRead
 serveRead mwait nbytes hp port () = do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       socketRead mwait csock nbytes
+       recv mwait csock nbytes
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream.
@@ -355,7 +355,7 @@ serveWrite
 serveWrite mwait hp port = \() -> do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       forever $ for (request ()) (socketWrite mwait csock)
+       forever $ for (request ()) (send mwait csock)
 
 --------------------------------------------------------------------------------
 
@@ -375,7 +375,7 @@ serveWrite mwait hp port = \() -> do
 --
 -- This proxy returns if the remote peer closes its side of the connection or
 -- EOF is received.
-socketRead
+recv
   :: Ps.MonadSafe m
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
@@ -384,60 +384,58 @@ socketRead
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString m ()
-socketRead Nothing sock = \nbytes -> fix $ \loop -> do
+recv Nothing sock = \nbytes -> fix $ \loop -> do
       mbs <- lift . Ps.tryIO $ S.recv sock nbytes
       case mbs of
         Just bs -> respond bs >> loop
         Nothing -> return ()
-socketRead (Just wait) sock = \nbytes -> fix $ \loop -> do
+recv (Just wait) sock = \nbytes -> fix $ \loop -> do
       mmbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
       case mmbs of
         Just (Just bs) -> respond bs >> loop
         Just Nothing   -> return ()
         Nothing        -> lift . Ps.throw $
-          I.Timeout $ "socketRead: " <> show wait <> " microseconds."
-{-# INLINABLE socketRead #-}
+          I.Timeout $ "recv: " <> show wait <> " microseconds."
+{-# INLINABLE recv #-}
 
--- | Just like 'socketRead', except each request from downstream specifies the
+-- | Just like 'recv', except each request from downstream specifies the
 -- maximum number of bytes to receive.
-nsocketRead
+recv'
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> NS.Socket          -- ^Connected socket.
-  -> Int -> Server Int B.ByteString m ()
-nsocketRead Nothing sock = loop where
-    loop nbytes = do
+  => Maybe Int -> NS.Socket -> Int -> Server Int B.ByteString m ()
+recv' Nothing sock = loop where
+    loop = \nbytes -> do
       mbs <- lift . Ps.tryIO $ S.recv sock nbytes
       case mbs of
         Just bs -> respond bs >>= loop
         Nothing -> return ()
-nsocketRead (Just wait) sock = loop where
-    loop nbytes = do
+recv' (Just wait) sock = loop where
+    loop = \nbytes -> do
       mbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
       case mbs of
         Just (Just bs) -> respond bs >>= loop
         Just Nothing   -> return ()
         Nothing        -> lift (Ps.throw ex)
-    ex = I.Timeout $ "nsocketRead: " <> show wait <> " microseconds."
-{-# INLINABLE nsocketRead #-}
+    ex = I.Timeout $ "recv': " <> show wait <> " microseconds."
+{-# INLINABLE recv' #-}
 
 -- | Sends to the remote end the bytes received from upstream.
 --
 -- If an optional timeout is given and sending data to the remote end takes
 -- more time that such timeout, then throw a 'I.Timeout' exception.
-socketWrite
+send
   :: Ps.MonadSafe m
   => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> B.ByteString       -- ^Bytes to send to the remote end.
   -> Effect' m ()
-socketWrite Nothing sock = lift . Ps.tryIO . S.send sock
-socketWrite (Just wait) sock = \bs -> do
+send Nothing     sock = lift . Ps.tryIO . S.send sock
+send (Just wait) sock = \bs -> do
     m <- lift . Ps.tryIO . timeout wait $ S.send sock bs
     case m of
       Just () -> return ()
       Nothing -> lift . Ps.throw $
-        I.Timeout $ "socketWrite: " <> show wait <> " microseconds."
-{-# INLINABLE socketWrite #-}
+        I.Timeout $ "send: " <> show wait <> " microseconds."
+{-# INLINABLE send #-}
 
 

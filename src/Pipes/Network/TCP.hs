@@ -28,12 +28,13 @@ module Pipes.Network.TCP (
 
   -- * Socket streams
   -- $socket-streaming
-  , socketRead
-  , socketWrite
+  , recv
+  , recv'
+  , send
   -- ** Timeouts
   -- $socket-streaming-timeout
-  , socketReadTimeout
-  , socketWriteTimeout
+  , recvTimeout
+  , sendTimeout
 
   -- * Note to Windows users
   -- $windows-users
@@ -46,6 +47,7 @@ module Pipes.Network.TCP (
 
 import qualified Control.Monad.Trans.Error      as E
 import qualified Data.ByteString                as B
+import           Data.Function                  (fix)
 import           Data.Monoid
 import qualified Network.Socket                 as NS
 import qualified Network.Simple.TCP             as S
@@ -92,7 +94,7 @@ import           System.Timeout                 (timeout)
 -- 'S.connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"Connection established to \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'socketRead', 'socketWrite' or similar proxies
+--   -- possibly using 'recv', 'send' or similar proxies
 --   -- explained below.
 -- @
 
@@ -107,7 +109,7 @@ import           System.Timeout                 (timeout)
 -- 'S.serve' ('S.Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
 --   putStrLn $ \"TCP connection established from \" ++ show remoteAddr
 --   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'socketRead', 'socketWrite' or similar proxies
+--   -- possibly using 'recv', 'send' or similar proxies
 --   -- explained below.
 -- @
 --
@@ -127,29 +129,40 @@ import           System.Timeout                 (timeout)
 --
 -- This proxy returns if the remote peer closes its side of the connection or
 -- EOF is received.
-socketRead
+recv
   :: NS.Socket          -- ^Connected socket.
   -> Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString IO ()
-socketRead sock = loop where
+recv sock = \nbytes -> fix $ \loop -> do
+    mbs <- lift (S.recv sock nbytes)
+    case mbs of
+      Just bs -> respond bs >> loop
+      Nothing -> return ()
+{-# INLINABLE recv #-}
+
+
+-- | Like 'recv', except the downstream consumer can specify the maximum
+-- number of bytes to receive at once.
+recv' :: NS.Socket -> Int -> Server Int B.ByteString IO ()
+recv' sock = loop where
     loop = \nbytes -> do
-      mbs <- lift (S.recv sock nbytes)
-      case mbs of
-        Just bs -> respond bs >> loop nbytes
-        Nothing -> return ()
-{-# INLINABLE socketRead #-}
+        mbs <- lift (S.recv sock nbytes)
+        case mbs of
+          Just bs -> respond bs >>= loop
+          Nothing -> return ()
+{-# INLINABLE recv' #-}
 
 
 -- | Sends to the remote end the bytes received from upstream.
-socketWrite
+send
   :: NS.Socket          -- ^Connected socket.
   -> B.ByteString       -- ^Bytes to send to the remote end.
   -> Effect' IO ()
-socketWrite sock = lift . S.send sock
-{-# INLINABLE socketWrite #-}
+send sock = lift . S.send sock
+{-# INLINABLE send #-}
 
 --------------------------------------------------------------------------------
 
@@ -158,10 +171,10 @@ socketWrite sock = lift . S.send sock
 -- These proxies behave like the similarly named ones above, except support for
 -- timing out the interaction with the remote end is added.
 
--- | Like 'socketRead', except it throws 'I.Timeout' in the 'E.ErrorT' monad
+-- | Like 'recv', except it throws 'I.Timeout' in the 'E.ErrorT' monad
 -- transformer if receiving data from the remote end takes more time than
 -- specified.
-socketReadTimeout
+recvTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> Int                -- ^Maximum number of bytes to receive and send
@@ -169,28 +182,27 @@ socketReadTimeout
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString (E.ErrorT I.Timeout IO) ()
-socketReadTimeout wait sock = loop where
-    loop = \nbytes -> do
-      mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
-      case mmbs of
-        Just (Just bs) -> respond bs >> loop nbytes
-        Just Nothing   -> return ()
-        Nothing        -> lift . E.throwError $
-          I.Timeout $ "socketReadTimeout: " <> show wait <> " microseconds."
-{-# INLINABLE socketReadTimeout #-}
+recvTimeout wait sock = \nbytes -> fix $ \loop -> do
+    mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
+    case mmbs of
+      Just (Just bs) -> yield bs >> loop
+      Just Nothing   -> return ()
+      Nothing        -> lift . E.throwError $
+        I.Timeout $ "recvTimeout: " <> show wait <> " microseconds."
+{-# INLINABLE recvTimeout #-}
 
 
--- | Like 'socketWrite', except it throws 'I.Timeout' in the 'E.ErrorT' monad
+-- | Like 'send', except it throws 'I.Timeout' in the 'E.ErrorT' monad
 -- transformer if sending data to the remote end takes more time than specified.
-socketWriteTimeout
+sendTimeout
   :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
   -> NS.Socket          -- ^Connected socket.
   -> B.ByteString       -- ^Bytes to send to the remote end.
   -> Effect' (E.ErrorT I.Timeout IO) ()
-socketWriteTimeout wait sock = \bs -> do
+sendTimeout wait sock = \bs -> do
     m <- lift . lift . timeout wait . S.send sock $ bs
     case m of
       Just () -> return ()
       Nothing -> lift . E.throwError $
-        I.Timeout $ "socketWriteTimeout: " <> show wait <> " microseconds."
-{-# INLINABLE socketWriteTimeout #-}
+        I.Timeout $ "sendTimeout: " <> show wait <> " microseconds."
+{-# INLINABLE sendTimeout #-}
