@@ -385,17 +385,17 @@ recv
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString m ()
 recv Nothing sock = \nbytes -> fix $ \loop -> do
-      mbs <- lift . Ps.tryIO $ S.recv sock nbytes
-      case mbs of
-        Just bs -> respond bs >> loop
-        Nothing -> return ()
+    mbs <- lift . Ps.tryIO $ S.recv sock nbytes
+    case mbs of
+      Just bs -> respond bs >> loop
+      Nothing -> return ()
 recv (Just wait) sock = \nbytes -> fix $ \loop -> do
-      mmbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
-      case mmbs of
-        Just (Just bs) -> respond bs >> loop
-        Just Nothing   -> return ()
-        Nothing        -> lift . Ps.throw $
-          I.Timeout $ "recv: " <> show wait <> " microseconds."
+    mmbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
+    case mmbs of
+      Just (Just bs) -> respond bs >> loop
+      Just Nothing   -> return ()
+      Nothing        -> lift . Ps.throw $
+        I.Timeout $ "recv: " <> show wait <> " microseconds."
 {-# INLINABLE recv #-}
 
 -- | Just like 'recv', except each request from downstream specifies the
@@ -403,20 +403,18 @@ recv (Just wait) sock = \nbytes -> fix $ \loop -> do
 recv'
   :: Ps.MonadSafe m
   => Maybe Int -> NS.Socket -> Int -> Server Int B.ByteString m ()
-recv' Nothing sock = loop where
-    loop = \nbytes -> do
-      mbs <- lift . Ps.tryIO $ S.recv sock nbytes
-      case mbs of
-        Just bs -> respond bs >>= loop
-        Nothing -> return ()
-recv' (Just wait) sock = loop where
-    loop = \nbytes -> do
-      mbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
-      case mbs of
-        Just (Just bs) -> respond bs >>= loop
-        Just Nothing   -> return ()
-        Nothing        -> lift (Ps.throw ex)
-    ex = I.Timeout $ "recv': " <> show wait <> " microseconds."
+recv' Nothing sock = fix $ \loop nbytes -> do
+    mbs <- lift . Ps.tryIO $ S.recv sock nbytes
+    case mbs of
+      Just bs -> respond bs >>= loop
+      Nothing -> return ()
+recv' (Just wait) sock = fix $ \loop nbytes -> do
+    mbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
+    case mbs of
+      Just (Just bs) -> respond bs >>= loop
+      Just Nothing   -> return ()
+      Nothing        -> lift . Ps.throw $
+        I.Timeout $ "recv': " <> show wait <> " microseconds."
 {-# INLINABLE recv' #-}
 
 -- | Sends to the remote end the bytes received from upstream.

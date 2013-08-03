@@ -136,7 +136,7 @@ recv
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString IO ()
-recv sock = \nbytes -> fix $ \loop -> do
+recv sock nbytes = fix $ \loop -> do
     mbs <- lift (S.recv sock nbytes)
     case mbs of
       Just bs -> respond bs >> loop
@@ -147,12 +147,11 @@ recv sock = \nbytes -> fix $ \loop -> do
 -- | Like 'recv', except the downstream consumer can specify the maximum
 -- number of bytes to receive at once.
 recv' :: NS.Socket -> Int -> Server Int B.ByteString IO ()
-recv' sock = loop where
-    loop = \nbytes -> do
-        mbs <- lift (S.recv sock nbytes)
-        case mbs of
-          Just bs -> respond bs >>= loop
-          Nothing -> return ()
+recv' sock = fix $ \loop nbytes -> do
+    mbs <- lift (S.recv sock nbytes)
+    case mbs of
+      Just bs -> respond bs >>= loop
+      Nothing -> return ()
 {-# INLINABLE recv' #-}
 
 
@@ -182,7 +181,7 @@ recvTimeout
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString (E.ErrorT I.Timeout IO) ()
-recvTimeout wait sock = \nbytes -> fix $ \loop -> do
+recvTimeout wait sock nbytes = fix $ \loop -> do
     mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
     case mmbs of
       Just (Just bs) -> yield bs >> loop
