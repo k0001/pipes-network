@@ -88,7 +88,7 @@ fromSocketN sock = loop where
 --
 -- The following 'Proxy's allow you to send bytes to the remote end.
 --
--- Besides the 'Proxy's above, you might want to 'lift' "Network.Simple.TCP"'s
+-- Besides the 'Proxy's below, you might want to 'lift' "Network.Simple.TCP"'s
 -- 'Network.Simple.TCP.send' to be used as an 'Effect':
 --
 -- @
