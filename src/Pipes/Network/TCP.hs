@@ -1,154 +1,75 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | This module exports functions that allow you to safely use 'NS.Socket'
--- resources acquired and released outside a 'P.Proxy' pipeline.
+-- | This minimal module exports facilities that ease the usage of TCP
+-- 'NS.Socket's in the /Pipes ecosystem/.
 --
--- Instead, if want to safely acquire and release resources within the
--- pipeline itself, then you should use the functions exported by
--- "Pipes.Network.TCP.Safe".
+-- You are encouraged to use this module in conjunction with the
+-- "Network.Simple.TCP" module from the 'network-simple' package:
 --
--- This module re-exports many functions from "Network.Simple.TCP"
--- module in the @network-simple@ package. You might refer to that
--- module for more documentation.
-
+-- @
+-- import qualified Network.Simple.TCP as NT
+-- import qualified Pipes.Network.TCP  as NT
+-- @
+--
+-- Besides the 'Producer's and 'Consumer's exported by this module, you may want
+-- to 'lift' the functions 'Network.Simple.TCP.send' and
+-- 'Network.Simple.TCP.recv' to be used as 'Effect's.
+--
+-- This module /does not/ export facilities that would allow you to acquire new
+-- 'NS.Socket's within a 'Proxy' pipeline. If you need to do so, then you should
+-- use the similar "Pipes.Network.TCP.Safe" module instead.
 
 module Pipes.Network.TCP (
-  -- * Client side
-  -- $client-side
-    S.connect
-
-  -- * Server side
-  -- $server-side
-  , S.serve
-  -- ** Listening
-  , S.listen
-  -- ** Accepting
-  , S.accept
-  , S.acceptFork
-
-  -- * Socket streams
-  -- $socket-streaming
-  , recv
-  , recv'
-  , send
-
-  -- * Note to Windows users
-  -- $windows-users
-  , NS.withSocketsDo
-
-  -- * Types
-  , S.HostPreference(..)
+    fromSocket
+  , fromSocketN
+  , toSocket
   ) where
 
 import qualified Data.ByteString                as B
-import           Data.Function                  (fix)
 import qualified Network.Socket                 as NS
-import qualified Network.Simple.TCP             as S
+import qualified Network.Socket.ByteString      as NSB
 import           Pipes
 import           Pipes.Core
 
 --------------------------------------------------------------------------------
 
--- $windows-users
---
--- If you are running Windows, then you /must/ call 'NS.withSocketsDo', just
--- once, right at the beginning of your program. That is, change your program's
--- 'main' function from:
---
--- @
--- main = do
---   print \"Hello world\"
---   -- rest of the program...
--- @
---
--- To:
---
--- @
--- main = 'NS.withSocketsDo' $ do
---   print \"Hello world\"
---   -- rest of the program...
--- @
---
--- If you don't do this, your networking code won't work and you will get many
--- unexpected errors at runtime. If you use an operating system other than
--- Windows then you don't need to do this, but it is harmless to do it, so it's
--- recommended that you do for portability reasons.
-
---------------------------------------------------------------------------------
-
--- $client-side
---
--- Here's how you could run a TCP client:
---
--- @
--- 'S.connect' \"www.example.org\" \"80\" $ \(connectionSocket, remoteAddr) -> do
---   putStrLn $ \"Connection established to \" ++ show remoteAddr
---   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'recv', 'send' or similar proxies
---   -- explained below.
--- @
-
---------------------------------------------------------------------------------
-
--- $server-side
---
--- Here's how you can run a TCP server that handles in different threads each
--- incoming connection to port @8000@ at IPv4 address @127.0.0.1@:
---
--- @
--- 'S.serve' ('S.Host' \"127.0.0.1\") \"8000\" $ \(connectionSocket, remoteAddr) -> do
---   putStrLn $ \"TCP connection established from \" ++ show remoteAddr
---   -- Now you may use connectionSocket as you please within this scope,
---   -- possibly using 'recv', 'send' or similar proxies
---   -- explained below.
--- @
---
--- If you need more control on the way your server runs, then you can use more
--- advanced functions such as 'listen', 'accept' and 'acceptFork'.
-
---------------------------------------------------------------------------------
-
--- $socket-streaming
---
--- Once you have a connected 'NS.Socket', you can use the following 'P.Proxy's
--- to interact with the other connection end using streams.
-
 -- | Receives bytes from the remote end sends them downstream.
 --
--- Less than the specified maximum number of bytes might be received at once.
+-- The number of bytes received at once is always in the interval
+-- /[1 .. specified maximum]/.
 --
--- This proxy returns if the remote peer closes its side of the connection or
--- EOF is received.
-recv
-  :: NS.Socket          -- ^Connected socket.
-  -> Int                -- ^Maximum number of bytes to receive and send
-                        -- dowstream at once. Any positive value is fine, the
-                        -- optimal value depends on how you deal with the
-                        -- received data. Try using @4096@ if you don't care.
-  -> Producer B.ByteString IO ()
-recv sock nbytes = fix $ \loop -> do
-    mbs <- lift (S.recv sock nbytes)
-    case mbs of
-      Just bs -> respond bs >> loop
-      Nothing -> return ()
-{-# INLINABLE recv #-}
+-- This 'Producer' returns if the remote peer closes its side of the connection
+-- or EOF is received.
+fromSocket :: NS.Socket  -- ^Connected socket.
+           -> Int        -- ^Maximum number of bytes to receive and send
+                         -- dowstream at once. Any positive value is fine, the
+                         -- optimal value depends on how you deal with the
+                         -- received data. Try using @4096@ if you don't care.
+           -> Producer B.ByteString IO ()
+fromSocket sock nbytes = loop where
+    loop = do
+        bs <- lift (NSB.recv sock nbytes)
+        if B.null bs
+           then return ()
+           else respond bs >> loop
+{-# INLINABLE fromSocket #-}
 
 
--- | Like 'recv', except the downstream consumer can specify the maximum
--- number of bytes to receive at once.
-recv' :: NS.Socket -> Int -> Server Int B.ByteString IO ()
-recv' sock = fix $ \loop nbytes -> do
-    mbs <- lift (S.recv sock nbytes)
-    case mbs of
-      Just bs -> respond bs >>= loop
-      Nothing -> return ()
-{-# INLINABLE recv' #-}
+-- | Like 'fromSocket', except the downstream 'Proxy' can specify the maximum
+-- number of bytes to receive at once using 'request'.
+fromSocketN :: NS.Socket -> Int -> Server Int B.ByteString IO ()
+fromSocketN sock = loop where
+    loop = \nbytes -> do
+        bs <- lift (NSB.recv sock nbytes)
+        if B.null bs
+           then return ()
+           else respond bs >>= loop
+{-# INLINABLE fromSocketN #-}
 
 
--- | Sends to the remote end the bytes received from upstream.
-send
-  :: NS.Socket          -- ^Connected socket.
-  -> B.ByteString       -- ^Bytes to send to the remote end.
-  -> Effect' IO ()
-send sock = lift . S.send sock
-{-# INLINABLE send #-}
+-- | Sends to the remote end each 'B.ByteString' received from upstream.
+toSocket :: NS.Socket  -- ^Connected socket.
+         -> Consumer B.ByteString IO r
+toSocket sock = cat //> lift . NSB.sendAll sock
+{-# INLINABLE toSocket #-}
+
