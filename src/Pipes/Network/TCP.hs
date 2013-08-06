@@ -4,7 +4,7 @@
 -- 'NS.Socket's in the /Pipes ecosystem/.
 --
 -- You are encouraged to use this module in conjunction with the
--- "Network.Simple.TCP" module from the 'network-simple' package:
+-- "Network.Simple.TCP" module from the @network-simple@ package:
 --
 -- @
 -- import qualified Network.Simple.TCP as NT
