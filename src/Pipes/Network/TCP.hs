@@ -91,5 +91,5 @@ toSocket sock = cat //> lift . NSB.sendAll sock
 -- send' sock bytes = 'lift' $ 'Network.Simple.TCP.send' sock bytes
 -- @
 --
--- These functions are so small that they are not exported by this module—so
--- that you can enjoy composing them yourself, oh functional programmer.
+-- These functions are small enough that they are not exported by this module,
+-- so that you can enjoy composing them yourself, oh functional programmer.
