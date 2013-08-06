@@ -11,18 +11,18 @@
 -- import qualified Pipes.Network.TCP  as NT
 -- @
 --
--- Besides the 'Producer's and 'Consumer's exported by this module, you may want
--- to 'lift' the functions 'Network.Simple.TCP.send' and
--- 'Network.Simple.TCP.recv' to be used as 'Effect's.
---
 -- This module /does not/ export facilities that would allow you to acquire new
 -- 'NS.Socket's within a 'Proxy' pipeline. If you need to do so, then you should
 -- use the similar "Pipes.Network.TCP.Safe" module instead.
 
 module Pipes.Network.TCP (
+  -- * Producers
     fromSocket
   , fromSocketN
+  -- * Consumers
   , toSocket
+  -- * Effects
+  -- $effects
   ) where
 
 import qualified Data.ByteString                as B
@@ -73,3 +73,23 @@ toSocket :: NS.Socket  -- ^Connected socket.
 toSocket sock = cat //> lift . NSB.sendAll sock
 {-# INLINABLE toSocket #-}
 
+
+-- $effects
+--
+-- Besides the 'Producer's and 'Consumer's exported by this module, you may want
+-- to 'lift' the functions 'Network.Simple.TCP.send' and
+-- 'Network.Simple.TCP.recv' from the "Network.Simple.TCP" module to be used as
+-- 'Effect's:
+--
+-- @
+-- recv' :: 'NS.Socket' -> 'Int' -> 'Effect'' 'IO' ('Maybe' 'B.ByteString')
+-- recv' sock nbytes = 'lift' $ 'Network.Simple.TCP.recv' sock nbytes
+-- @
+--
+-- @
+-- send' :: 'NS.Socket' -> 'B.ByteString' -> 'Effect'' 'IO' ()
+-- send' sock bytes = 'lift' $ 'Network.Simple.TCP.send' sock bytes
+-- @
+--
+-- These functions are so small that they are not exported by this module—so
+-- that you can enjoy composing them yourself, oh functional programmer.
