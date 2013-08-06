@@ -44,21 +44,17 @@ module Pipes.Network.TCP.Safe (
 
   -- * Exports
   S.HostPreference(..),
-  I.Timeout(..)
   ) where
 
 import           Control.Concurrent             (ThreadId)
 import           Control.Monad
 import qualified Data.ByteString                as B
 import           Data.Function                  (fix)
-import           Data.Monoid
 import qualified Network.Socket                 as NS
 import qualified Network.Simple.TCP             as S
 import           Pipes
 import           Pipes.Core
 import qualified Pipes.Safe                     as Ps
-import qualified Pipes.Network.Internal         as I
-import           System.Timeout                 (timeout)
 
 --------------------------------------------------------------------------------
 
@@ -136,9 +132,6 @@ connect host port = Ps.bracket (S.connectSock host port) (NS.sClose . fst)
 -- | Connect to a TCP server and send downstream the bytes received from the
 -- remote end.
 --
--- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception.
---
 -- The connection socket is closed when done or in case of exceptions.
 --
 -- Using this proxy you can write straightforward code like the following, which
@@ -148,23 +141,19 @@ connect host port = Ps.bracket (S.connectSock host port) (NS.sClose . fst)
 -- >>> runSafeIO . runProxy . runEitherK $ connectRead Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 connectRead
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> Int                -- ^Maximum number of bytes to receive and send
+  => Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> Producer B.ByteString m ()
-connectRead mwait nbytes host port = do
+connectRead nbytes host port = do
    connect host port $ \(csock,_) -> do
-     recv mwait csock nbytes
+     recv csock nbytes
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream.
---
--- If an optional timeout is given and sending data to the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception.
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
@@ -175,13 +164,12 @@ connectRead mwait nbytes host port = do
 -- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> connectWrite Nothing "127.0.0.1" "9000"
 connectWrite
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> NS.HostName        -- ^Server host name.
+  => NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> () -> Consumer B.ByteString m r
-connectWrite mwait hp port = \() -> do
+connectWrite hp port = \() -> do
    connect hp port $ \(csock,_) -> do
-     forever $ for (request ()) (send mwait csock)
+     forever $ await //> send csock
 
 --------------------------------------------------------------------------------
 
@@ -300,9 +288,6 @@ acceptFork lsock k = Ps.tryIO $ S.acceptFork lsock k
 -- | Binds a listening socket, accepts a single connection and sends downstream
 -- any bytes received from the remote end.
 --
--- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw 'I.Timeout' in 'MonadSafe'.
---
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- This proxy returns if the remote peer closes its side of the connection or
@@ -319,24 +304,20 @@ acceptFork lsock k = Ps.tryIO $ S.acceptFork lsock k
 -- >>> runSafeIO . runProxy . runEitherK $ serveRead Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 serveRead
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> Int                -- ^Maximum number of bytes to receive and send
+  => Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> () -> Producer B.ByteString m ()
-serveRead mwait nbytes hp port () = do
+serveRead nbytes hp port () = do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       recv mwait csock nbytes
+       recv csock nbytes
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream.
---
--- If an optional timeout is given and sending data to the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
@@ -348,14 +329,13 @@ serveRead mwait nbytes hp port () = do
 -- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> serveWrite Nothing "127.0.0.1" "9000"
 serveWrite
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> S.HostPreference   -- ^Preferred host to bind.
+  => S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> () -> Consumer B.ByteString m r
-serveWrite mwait hp port = \() -> do
+serveWrite hp port = \() -> do
    listen hp port $ \(lsock,_) -> do
      accept lsock $ \(csock,_) -> do
-       forever $ for (request ()) (send mwait csock)
+       forever $ await //> send csock
 
 --------------------------------------------------------------------------------
 
@@ -368,72 +348,44 @@ serveWrite mwait hp port = \() -> do
 
 -- | Receives bytes from the remote end and sends them downstream.
 --
--- If an optional timeout is given and receiveing data from the remote end takes
--- more time that such timeout, then throw 'I.Timeout' in 'Ps.MonadSafe'.
---
 -- Less than the specified maximum number of bytes might be received at once.
 --
 -- This proxy returns if the remote peer closes its side of the connection or
 -- EOF is received.
 recv
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> NS.Socket          -- ^Connected socket.
+  => NS.Socket          -- ^Connected socket.
   -> Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
   -> Producer B.ByteString m ()
-recv Nothing sock = \nbytes -> fix $ \loop -> do
+recv sock = \nbytes -> fix $ \loop -> do
     mbs <- lift . Ps.tryIO $ S.recv sock nbytes
     case mbs of
       Just bs -> respond bs >> loop
       Nothing -> return ()
-recv (Just wait) sock = \nbytes -> fix $ \loop -> do
-    mmbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
-    case mmbs of
-      Just (Just bs) -> respond bs >> loop
-      Just Nothing   -> return ()
-      Nothing        -> lift . Ps.throw $
-        I.Timeout $ "recv: " <> show wait <> " microseconds."
 {-# INLINABLE recv #-}
 
 -- | Just like 'recv', except each request from downstream specifies the
 -- maximum number of bytes to receive.
 recv'
   :: Ps.MonadSafe m
-  => Maybe Int -> NS.Socket -> Int -> Server Int B.ByteString m ()
-recv' Nothing sock = fix $ \loop nbytes -> do
+  => NS.Socket -> Int -> Server Int B.ByteString m ()
+recv' sock = fix $ \loop nbytes -> do
     mbs <- lift . Ps.tryIO $ S.recv sock nbytes
     case mbs of
       Just bs -> respond bs >>= loop
       Nothing -> return ()
-recv' (Just wait) sock = fix $ \loop nbytes -> do
-    mbs <- lift . Ps.tryIO $ timeout wait (S.recv sock nbytes)
-    case mbs of
-      Just (Just bs) -> respond bs >>= loop
-      Just Nothing   -> return ()
-      Nothing        -> lift . Ps.throw $
-        I.Timeout $ "recv': " <> show wait <> " microseconds."
 {-# INLINABLE recv' #-}
 
 -- | Sends to the remote end the bytes received from upstream.
---
--- If an optional timeout is given and sending data to the remote end takes
--- more time that such timeout, then throw a 'I.Timeout' exception.
 send
   :: Ps.MonadSafe m
-  => Maybe Int          -- ^Optional timeout in microseconds (1/10^6 seconds).
-  -> NS.Socket          -- ^Connected socket.
+  => NS.Socket          -- ^Connected socket.
   -> B.ByteString       -- ^Bytes to send to the remote end.
   -> Effect' m ()
-send Nothing     sock = lift . Ps.tryIO . S.send sock
-send (Just wait) sock = \bs -> do
-    m <- lift . Ps.tryIO . timeout wait $ S.send sock bs
-    case m of
-      Just () -> return ()
-      Nothing -> lift . Ps.throw $
-        I.Timeout $ "send: " <> show wait <> " microseconds."
+send sock = lift . Ps.tryIO . S.send sock
 {-# INLINABLE send #-}
 
 

@@ -31,10 +31,6 @@ module Pipes.Network.TCP (
   , recv
   , recv'
   , send
-  -- ** Timeouts
-  -- $socket-streaming-timeout
-  , recvTimeout
-  , sendTimeout
 
   -- * Note to Windows users
   -- $windows-users
@@ -42,20 +38,14 @@ module Pipes.Network.TCP (
 
   -- * Types
   , S.HostPreference(..)
-  , I.Timeout(..)
   ) where
 
-import qualified Control.Monad.Trans.Error      as E
 import qualified Data.ByteString                as B
 import           Data.Function                  (fix)
-import           Data.Monoid
 import qualified Network.Socket                 as NS
 import qualified Network.Simple.TCP             as S
 import           Pipes
 import           Pipes.Core
-import qualified Pipes.Network.Internal         as I
-import           System.Timeout                 (timeout)
-
 
 --------------------------------------------------------------------------------
 
@@ -162,46 +152,3 @@ send
   -> Effect' IO ()
 send sock = lift . S.send sock
 {-# INLINABLE send #-}
-
---------------------------------------------------------------------------------
-
--- $socket-streaming-timeout
---
--- These proxies behave like the similarly named ones above, except support for
--- timing out the interaction with the remote end is added.
-
--- | Like 'recv', except it throws 'I.Timeout' in the 'E.ErrorT' monad
--- transformer if receiving data from the remote end takes more time than
--- specified.
-recvTimeout
-  :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
-  -> NS.Socket          -- ^Connected socket.
-  -> Int                -- ^Maximum number of bytes to receive and send
-                        -- dowstream at once. Any positive value is fine, the
-                        -- optimal value depends on how you deal with the
-                        -- received data. Try using @4096@ if you don't care.
-  -> Producer B.ByteString (E.ErrorT I.Timeout IO) ()
-recvTimeout wait sock nbytes = fix $ \loop -> do
-    mmbs <- lift . lift $ timeout wait (S.recv sock nbytes)
-    case mmbs of
-      Just (Just bs) -> yield bs >> loop
-      Just Nothing   -> return ()
-      Nothing        -> lift . E.throwError $
-        I.Timeout $ "recvTimeout: " <> show wait <> " microseconds."
-{-# INLINABLE recvTimeout #-}
-
-
--- | Like 'send', except it throws 'I.Timeout' in the 'E.ErrorT' monad
--- transformer if sending data to the remote end takes more time than specified.
-sendTimeout
-  :: Int                -- ^Timeout in microseconds (1/10^6 seconds).
-  -> NS.Socket          -- ^Connected socket.
-  -> B.ByteString       -- ^Bytes to send to the remote end.
-  -> Effect' (E.ErrorT I.Timeout IO) ()
-sendTimeout wait sock = \bs -> do
-    m <- lift . lift . timeout wait . S.send sock $ bs
-    case m of
-      Just () -> return ()
-      Nothing -> lift . E.throwError $
-        I.Timeout $ "sendTimeout: " <> show wait <> " microseconds."
-{-# INLINABLE sendTimeout #-}
