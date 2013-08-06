@@ -16,10 +16,10 @@
 -- use the similar "Pipes.Network.TCP.Safe" module instead.
 
 module Pipes.Network.TCP (
-  -- * Producers
+  -- * Receiving
     fromSocket
   , fromSocketN
-  -- * Consumers
+  -- * Sending
   , toSocket
   -- * Effects
   -- $effects
