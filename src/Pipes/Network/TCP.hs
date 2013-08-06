@@ -17,12 +17,12 @@
 
 module Pipes.Network.TCP (
   -- * Receiving
+  -- $receiving
     fromSocket
   , fromSocketN
   -- * Sending
+  -- $sending
   , toSocket
-  -- * Effects
-  -- $effects
   ) where
 
 import qualified Data.ByteString                as B
@@ -32,6 +32,22 @@ import           Pipes
 import           Pipes.Core
 
 --------------------------------------------------------------------------------
+
+-- $receiving
+--
+-- The following 'Proxy's allow you to receive bytes from the remote end.
+--
+-- Besides the 'Proxy's exported below, you might want to 'lift'
+-- "Network.Simple.TCP"'s 'Network.Simple.TCP.recv' to be used as an 'Effect':
+--
+-- @
+-- recv' :: 'NS.Socket' -> 'Int' -> 'Effect'' 'IO' ('Maybe' 'B.ByteString')
+-- recv' sock nbytes = 'lift' $ 'Network.Simple.TCP.recv' sock nbytes
+-- @
+--
+-- This module doesn't export this small function so that you can enjoy
+-- composing it yourself whenever you need it, oh functional programmer.
+
 
 -- | Receives bytes from the remote end sends them downstream.
 --
@@ -66,6 +82,22 @@ fromSocketN sock = loop where
            else respond bs >>= loop
 {-# INLINABLE fromSocketN #-}
 
+--------------------------------------------------------------------------------
+
+-- $sending
+--
+-- The following 'Proxy's allow you to send bytes to the remote end.
+--
+-- Besides the 'Proxy's above, you might want to 'lift' "Network.Simple.TCP"'s
+-- 'Network.Simple.TCP.send' to be used as an 'Effect':
+--
+-- @
+-- send' :: 'NS.Socket' -> 'B.ByteString' -> 'Effect'' 'IO' ()
+-- send' sock bytes = 'lift' $ 'Network.Simple.TCP.send' sock bytes
+-- @
+--
+-- This module doesn't export this small function so that you can enjoy
+-- composing it yourself whenever you need it, oh functional programmer.
 
 -- | Sends to the remote end each 'B.ByteString' received from upstream.
 toSocket :: NS.Socket  -- ^Connected socket.
@@ -73,23 +105,3 @@ toSocket :: NS.Socket  -- ^Connected socket.
 toSocket sock = cat //> lift . NSB.sendAll sock
 {-# INLINABLE toSocket #-}
 
-
--- $effects
---
--- Besides the 'Producer's and 'Consumer's exported by this module, you may want
--- to 'lift' the functions 'Network.Simple.TCP.send' and
--- 'Network.Simple.TCP.recv' from the "Network.Simple.TCP" module to be used as
--- 'Effect's:
---
--- @
--- recv' :: 'NS.Socket' -> 'Int' -> 'Effect'' 'IO' ('Maybe' 'B.ByteString')
--- recv' sock nbytes = 'lift' $ 'Network.Simple.TCP.recv' sock nbytes
--- @
---
--- @
--- send' :: 'NS.Socket' -> 'B.ByteString' -> 'Effect'' 'IO' ()
--- send' sock bytes = 'lift' $ 'Network.Simple.TCP.send' sock bytes
--- @
---
--- These functions are small enough that they are not exported by this module,
--- so that you can enjoy composing them yourself, oh functional programmer.
