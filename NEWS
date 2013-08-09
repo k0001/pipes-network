@@ -1,3 +1,15 @@
+# Version HEAD
+
+* Upgrade to pipes-4.0.0 and pipes-safe-2.0.0
+
+* `socketWriteD` and other `*Write*D` proxies are now `Consumer`s.
+
+* Removed the `D` and `S` suffixes from proxies.
+
+* Use `ErrorT` from the `transformers` package instead of `EitherT` from
+  the `either` package.
+
+
 # Version 0.5.1.0
 
 * Re-export `Network.Socket.withSocketsDo`.
