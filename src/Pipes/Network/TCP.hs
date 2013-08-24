@@ -46,7 +46,7 @@ import           Pipes.Core
 -- @
 --
 -- This module doesn't export this small function so that you can enjoy
--- composing it yourself whenever you need it, oh functional programmer.
+-- composing it yourself whenever you need it.
 
 
 -- | Receives bytes from the remote end sends them downstream.
@@ -97,7 +97,7 @@ fromSocketN sock = loop where
 -- @
 --
 -- This module doesn't export this small function so that you can enjoy
--- composing it yourself whenever you need it, oh functional programmer.
+-- composing it yourself whenever you need it.
 
 -- | Sends to the remote end each 'B.ByteString' received from upstream.
 toSocket :: NS.Socket  -- ^Connected socket.
