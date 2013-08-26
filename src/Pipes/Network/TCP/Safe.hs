@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, TypeFamilies #-}
 
 -- | This module exports facilities allowing you to safely obtain, use and
 -- release 'NS.Socket' resources within a /Pipes/ pipeline, by relying on
@@ -51,7 +51,7 @@ import qualified Pipes.Network.TCP              as PNT
 
 -- | Like 'S.connect' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 connect
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => NS.HostName                   -- ^Server hostname.
   -> NS.ServiceName                -- ^Server service port.
   -> ((NS.Socket, NS.SockAddr) -> m r)
@@ -65,7 +65,7 @@ connect host port = Ps.bracket (S.connectSock host port) (NS.sClose . fst)
 
 -- | Like 'S.serve' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 serve
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => S.HostPreference              -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> IO ())
@@ -82,7 +82,7 @@ serve hp port k = do
 
 -- | Like 'S.listen' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 listen
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => S.HostPreference              -- ^Preferred host to bind.
   -> NS.ServiceName                -- ^Service port to bind.
   -> ((NS.Socket, NS.SockAddr) -> m r)
@@ -99,7 +99,7 @@ listen hp port = Ps.bracket listen' (NS.sClose . fst)
 
 -- | Like 'S.accept' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 accept
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => NS.Socket                     -- ^Listening and bound socket.
   -> ((NS.Socket, NS.SockAddr) -> m r)
                                    -- ^Computation to run once an incoming
@@ -145,7 +145,7 @@ acceptFork lsock k = liftIO (S.acceptFork lsock k)
 --
 -- >>> runSafeIO . runProxy . runEitherK $ connectRead Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 connectRead
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
@@ -168,7 +168,7 @@ connectRead nbytes host port = do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> connectWrite Nothing "127.0.0.1" "9000"
 connectWrite
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> () -> Consumer B.ByteString m r
@@ -204,7 +204,7 @@ connectWrite hp port = \() -> do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeIO . runProxy . runEitherK $ serveRead Nothing 4096 "127.0.0.1" "9000" >-> tryK printD
 serveRead
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
@@ -229,7 +229,7 @@ serveRead nbytes hp port () = do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeIO . runProxy . runEitherK $ fromListS ["He","llo\r\n"] >-> serveWrite Nothing "127.0.0.1" "9000"
 serveWrite
-  :: Ps.MonadSafe m
+  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> () -> Consumer B.ByteString m r
