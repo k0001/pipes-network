@@ -171,8 +171,8 @@ connectWrite
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
-  -> () -> Consumer B.ByteString m r
-connectWrite hp port = \() -> do
+  -> Consumer B.ByteString m r
+connectWrite hp port = do
    connect hp port $ \(csock,_) -> do
       PNT.toSocket csock
 
@@ -211,8 +211,8 @@ serveRead
                         -- received data. Try using @4096@ if you don't care.
   -> S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
-  -> () -> Producer B.ByteString m ()
-serveRead nbytes hp port () = do
+  -> Producer B.ByteString m ()
+serveRead nbytes hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
          PNT.fromSocket csock nbytes
@@ -232,8 +232,8 @@ serveWrite
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => S.HostPreference   -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
-  -> () -> Consumer B.ByteString m r
-serveWrite hp port = \() -> do
+  -> Consumer B.ByteString m r
+serveWrite hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
          PNT.toSocket csock
