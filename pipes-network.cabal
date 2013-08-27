@@ -19,11 +19,11 @@ description:
   .
   This package is organized using the following namespaces:
   .
-  * "Pipes.Network.TCP" exports 'Pipes.Proxy's and functions for
+  * "Pipes.Network.TCP" exports pipes and functions for
   establishing and using TCP connections.
   .
   * "Pipes.Network.TCP.Safe" is similar to "Pipes.Network.TCP", except
-  the exported 'Pipes.Proxy's themselves can obtain new network
+  the exported pipes themselves can obtain new network
   resources safely by using the facilities providied by the @pipes-safe@
   package.
   .
