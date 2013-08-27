@@ -5,9 +5,9 @@
 -- the "Network.Simple.TCP" module from the @network-simple@ package.
 --
 -- This module /does not/ export facilities that would allow you to acquire new
--- 'NS.Socket's within a 'Proxy' pipeline. If you need to do so, then you'll
--- need to rely on additional features exported the "Pipes.Network.TCP.Safe"
--- module, which among other things, overrides some of the functions from
+-- 'NS.Socket's within a pipeline. If you need to do so, then you'll need to
+-- rely on additional features exported the "Pipes.Network.TCP.Safe" module,
+-- which among other things, overrides some of the functions from
 -- "Network.Simple.TCP".
 
 module Pipes.Network.TCP (
@@ -31,9 +31,9 @@ import           Pipes.Core
 
 -- $receiving
 --
--- The following 'Proxy's allow you to receive bytes from the remote end.
+-- The following pipes allow you to receive bytes from the remote end.
 --
--- Besides the 'Proxy's exported below, you might want to 'liftIO'
+-- Besides the pipes exported below, you might want to 'liftIO'
 -- "Network.Simple.TCP"'s 'Network.Simple.TCP.recv' to be used as an 'Effect':
 --
 -- @
@@ -69,7 +69,7 @@ fromSocket sock nbytes = loop where
 {-# INLINABLE fromSocket #-}
 
 
--- | Like 'fromSocket', except the downstream 'Proxy' can specify the maximum
+-- | Like 'fromSocket', except the downstream pipe can specify the maximum
 -- number of bytes to receive at once using 'request'.
 fromSocketN :: MonadIO m => NS.Socket -> Int -> Server Int B.ByteString m ()
 fromSocketN sock = loop where
@@ -84,9 +84,9 @@ fromSocketN sock = loop where
 
 -- $sending
 --
--- The following 'Proxy's allow you to send bytes to the remote end.
+-- The following pipes allow you to send bytes to the remote end.
 --
--- Besides the 'Proxy's below, you might want to 'liftIO' "Network.Simple.TCP"'s
+-- Besides the pipes below, you might want to 'liftIO' "Network.Simple.TCP"'s
 -- 'Network.Simple.TCP.send' to be used as an 'Effect':
 --
 -- @
