@@ -128,7 +128,7 @@ acceptFork lsock k = liftIO (S.acceptFork lsock k)
 
 -- $client-streaming
 --
--- The following proxies allow you to easily connect to a TCP server and
+-- The following pipes allow you to easily connect to a TCP server and
 -- immediately interact with it in a streaming fashion, all at once, instead of
 -- having to perform the individual steps separately.
 
@@ -139,9 +139,9 @@ acceptFork lsock k = liftIO (S.acceptFork lsock k)
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- Using this proxy you can write straightforward code like the following, which
--- prints whatever is received from a single TCP connection to a given server
--- listening locally on port 9000, in chunks of up to 4096 bytes:
+-- Using this 'Producer' you can write straightforward code like the following,
+-- which prints whatever is received from a single TCP connection to a given
+-- server listening locally on port 9000, in chunks of up to 4096 bytes:
 --
 -- >>> runSafeT . run $ connectRead Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
 connectRead
@@ -162,8 +162,8 @@ connectRead nbytes host port = do
 --
 -- The connection socket is closed in case of exceptions.
 --
--- Using this proxy you can write straightforward code like the following, which
--- greets a TCP client listening locally at port 9000:
+-- Using this 'Consumer' you can write straightforward code like the following,
+-- which greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . run $ each ["He","llo\r\n"] >-> connectWrite Nothing "127.0.0.1" "9000"
@@ -180,7 +180,7 @@ connectWrite hp port = do
 
 -- $server-streaming
 --
--- The following proxies allow you to easily run a TCP server and immediately
+-- The following pipes allow you to easily run a TCP server and immediately
 -- interact with incoming connections in a streaming fashion, all at once,
 -- instead of having to perform the individual steps separately.
 
@@ -191,15 +191,15 @@ connectWrite hp port = do
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- This proxy returns if the remote peer closes its side of the connection or
--- EOF is received.
+-- This 'Producer' returns if the remote peer closes its side of the connection
+-- or EOF is received.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
--- Using this proxy you can write straightforward code like the following, which
--- prints whatever is received from a single TCP connection to port 9000, in
--- chunks of up to 4096 bytes.
+-- Using this 'Producer' you can write straightforward code like the following,
+-- which prints whatever is received from a single TCP connection to port 9000,
+-- in chunks of up to 4096 bytes.
 --
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . run $ serveRead Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
@@ -223,8 +223,8 @@ serveRead nbytes hp port = do
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
--- Using this proxy you can write straightforward code like the following, which
--- greets a TCP client connecting to port 9000:
+-- Using this 'Consumer' you can write straightforward code like the following,
+-- which greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . run $ each ["He","llo\r\n"] >-> serveWrite Nothing "127.0.0.1" "9000"
