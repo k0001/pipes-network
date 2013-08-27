@@ -71,10 +71,10 @@ fromSocket sock nbytes = loop where
 
 -- | Like 'fromSocket', except the downstream 'Proxy' can specify the maximum
 -- number of bytes to receive at once using 'request'.
-fromSocketN :: NS.Socket -> Int -> Server Int B.ByteString IO ()
+fromSocketN :: MonadIO m => NS.Socket -> Int -> Server Int B.ByteString m ()
 fromSocketN sock = loop where
     loop = \nbytes -> do
-        bs <- lift (NSB.recv sock nbytes)
+        bs <- liftIO (NSB.recv sock nbytes)
         if B.null bs
            then return ()
            else respond bs >>= loop
