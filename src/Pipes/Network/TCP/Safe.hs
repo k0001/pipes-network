@@ -15,7 +15,7 @@
 -- by "Pipes.Network.TCP" directly.
 
 module Pipes.Network.TCP.Safe (
-  -- * 'Ps.MonadSafe'-aware versions of some "Pipes.Network.TCP" functions
+  -- * @MonadSafe@-aware versions of some @Pipes.Network.TCP@ functions
   -- ** Client side
     connect
   -- ** Server side
