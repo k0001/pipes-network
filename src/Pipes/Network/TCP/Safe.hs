@@ -15,114 +15,90 @@
 -- by "Pipes.Network.TCP" directly.
 
 module Pipes.Network.TCP.Safe (
-  -- * @MonadSafe@-aware versions of some @Pipes.Network.TCP@ functions
-  -- ** Client side
-    connect
-  -- ** Server side
-  , serve
-  -- *** Listening
-  , listen
-  -- *** Accepting
-  , accept
-  , acceptFork
-
   -- * Streaming
   -- ** Client side
   -- $client-streaming
-  , connectRead
+    connectRead
   , connectWrite
   -- ** Server side
   -- $server-streaming
   , serveRead
   , serveWrite
+  -- * @MonadSafe@-compatible upgrades
+  -- $network-simple-upgrades
+  , connect
+  , serve
+  , listen
+  , accept
+  -- * Exports
+  -- $exports
+  , module Pipes.Network.TCP
+  , module Network.Simple.TCP
   ) where
 
-import           Control.Concurrent             (ThreadId)
 import           Control.Monad
-import           Control.Monad.IO.Class         (MonadIO(liftIO))
-import qualified Data.ByteString                as B
-import qualified Network.Socket                 as NS
-import qualified Network.Simple.TCP             as S
+import           Control.Monad.IO.Class (MonadIO(liftIO))
+import qualified Data.ByteString        as B
+import           Network.Simple.TCP     hiding (connect, serve, listen, accept)
+import qualified Network.Socket         as NS
 import           Pipes
-import qualified Pipes.Safe                     as Ps
-import qualified Pipes.Network.TCP              as PNT
+import           Pipes.Network.TCP      (fromSocket, fromSocketN, toSocket)
+import qualified Pipes.Safe             as Ps
 
 --------------------------------------------------------------------------------
+-- $network-simple-upgrades
+--
+-- The following functions are analogous versions of those exported by
+-- "Network.Simple.TCP", but compatible with 'Ps.MonadSafe'.
+--
+--------------------------------------------------------------------------------
+-- $exports
+--
+-- Except for the overriden 'connect', 'serve', 'listen' and 'accept' functions
+-- above, the rest of the "Pipes.Network.TCP" and "Network.Simple.TCP" modules
+-- are exported entirely as they are.
+--------------------------------------------------------------------------------
 
--- | Like 'S.connect' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 connect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => NS.HostName                   -- ^Server hostname.
-  -> NS.ServiceName                -- ^Server service port.
+  => NS.HostName
+  -> NS.ServiceName
   -> ((NS.Socket, NS.SockAddr) -> m r)
-                                   -- ^Computation taking the
-                                   -- communication socket and the server
-                                   -- address.
   -> m r
-connect host port = Ps.bracket (S.connectSock host port) (NS.sClose . fst)
+connect host port = Ps.bracket (connectSock host port)
+                               (NS.sClose . fst)
 
---------------------------------------------------------------------------------
-
--- | Like 'S.serve' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 serve
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => S.HostPreference              -- ^Preferred host to bind.
-  -> NS.ServiceName                -- ^Service port to bind.
+  => HostPreference
+  -> NS.ServiceName
   -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                   -- ^Computation to run in a different thread
-                                   -- once an incoming connection is accepted.
-                                   -- Takes the connection socket and remote end
-                                   -- address.
   -> m r
 serve hp port k = do
    listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
---------------------------------------------------------------------------------
-
--- | Like 'S.listen' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 listen
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => S.HostPreference              -- ^Preferred host to bind.
-  -> NS.ServiceName                -- ^Service port to bind.
+  => HostPreference
+  -> NS.ServiceName
   -> ((NS.Socket, NS.SockAddr) -> m r)
-                                   -- ^Computation taking the listening
-                                   -- socket and the address it's bound to.
   -> m r
 listen hp port = Ps.bracket listen' (NS.sClose . fst)
   where
-    listen' = do x@(bsock,_) <- S.bindSock hp port
+    listen' = do x@(bsock,_) <- bindSock hp port
                  NS.listen bsock (max 2048 NS.maxListenQueue)
                  return x
 
---------------------------------------------------------------------------------
-
--- | Like 'S.accept' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
 accept
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => NS.Socket                     -- ^Listening and bound socket.
+  => NS.Socket
   -> ((NS.Socket, NS.SockAddr) -> m r)
-                                   -- ^Computation to run once an incoming
-                                   -- connection is accepted. Takes the
-                                   -- connection socket and remote end address.
   -> m r
 accept lsock k = do
     conn@(csock,_) <- liftIO (NS.accept lsock)
     Ps.finally (k conn) (NS.sClose csock)
 {-# INLINABLE accept #-}
-
--- | Like 'S.acceptFork' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
-acceptFork
-  :: Ps.MonadSafe m
-  => NS.Socket                     -- ^Listening and bound socket.
-  -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                  -- ^Computation to run in a different thread
-                                  -- once an incoming connection is accepted.
-                                  -- Takes the connection socket and remote end
-                                  -- address.
-  -> m ThreadId
-acceptFork lsock k = liftIO (S.acceptFork lsock k)
-{-# INLINE acceptFork #-}
 
 --------------------------------------------------------------------------------
 
@@ -155,7 +131,7 @@ connectRead
   -> Producer B.ByteString m ()
 connectRead nbytes host port = do
    connect host port $ \(csock,_) -> do
-      PNT.fromSocket csock nbytes
+      fromSocket csock nbytes
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream.
@@ -174,7 +150,7 @@ connectWrite
   -> Consumer B.ByteString m r
 connectWrite hp port = do
    connect hp port $ \(csock,_) -> do
-      PNT.toSocket csock
+      toSocket csock
 
 --------------------------------------------------------------------------------
 
@@ -209,13 +185,13 @@ serveRead
                         -- dowstream at once. Any positive value is fine, the
                         -- optimal value depends on how you deal with the
                         -- received data. Try using @4096@ if you don't care.
-  -> S.HostPreference   -- ^Preferred host to bind.
+  -> HostPreference     -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> Producer B.ByteString m ()
 serveRead nbytes hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
-         PNT.fromSocket csock nbytes
+         fromSocket csock nbytes
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream.
@@ -230,12 +206,12 @@ serveRead nbytes hp port = do
 -- >>> runSafeT . run $ each ["He","llo\r\n"] >-> serveWrite Nothing "127.0.0.1" "9000"
 serveWrite
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => S.HostPreference   -- ^Preferred host to bind.
+  => HostPreference     -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> Consumer B.ByteString m r
 serveWrite hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
-         PNT.toSocket csock
+         toSocket csock
 
 
