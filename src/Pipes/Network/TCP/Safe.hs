@@ -16,6 +16,7 @@
 
 module Pipes.Network.TCP.Safe (
   -- * @MonadSafe@-aware versions of some @Pipes.Network.TCP@ functions
+  -- $network-simple-upgrades
   -- ** Client side
     connect
   -- ** Server side
@@ -24,7 +25,6 @@ module Pipes.Network.TCP.Safe (
   , listen
   -- *** Accepting
   , accept
-  , acceptFork
 
   -- * Streaming
   -- ** Client side
@@ -37,7 +37,6 @@ module Pipes.Network.TCP.Safe (
   , serveWrite
   ) where
 
-import           Control.Concurrent             (ThreadId)
 import           Control.Monad
 import           Control.Monad.IO.Class         (MonadIO(liftIO))
 import qualified Data.ByteString                as B
@@ -46,6 +45,17 @@ import qualified Network.Simple.TCP             as S
 import           Pipes
 import qualified Pipes.Safe                     as Ps
 import qualified Pipes.Network.TCP              as PNT
+
+--------------------------------------------------------------------------------
+-- $network-simple-upgrades
+--
+-- The functions exported below are 'Ps.MonadSafe'-compatible versions of the
+-- equally-named functions present in the "Network.Simple.TCP" module from the
+-- @network-simple@ package.
+--
+-- Additionaly, you might want to use 'S.acceptFork', 'S.send', and 'S.recv'
+-- from "Network.Simple.TCP" in a 'Ps.MonadSafe'-compatible way. To do so, just
+-- apply 'liftIO' to them.
 
 --------------------------------------------------------------------------------
 
@@ -76,7 +86,7 @@ serve
   -> m r
 serve hp port k = do
    listen hp port $ \(lsock,_) -> do
-      forever $ acceptFork lsock k
+      liftIO . forever $ S.acceptFork lsock k
 
 --------------------------------------------------------------------------------
 
@@ -110,19 +120,6 @@ accept lsock k = do
     conn@(csock,_) <- liftIO (NS.accept lsock)
     Ps.finally (k conn) (NS.sClose csock)
 {-# INLINABLE accept #-}
-
--- | Like 'S.acceptFork' from "Network.Simple.TCP", except using 'Ps.MonadSafe'.
-acceptFork
-  :: Ps.MonadSafe m
-  => NS.Socket                     -- ^Listening and bound socket.
-  -> ((NS.Socket, NS.SockAddr) -> IO ())
-                                  -- ^Computation to run in a different thread
-                                  -- once an incoming connection is accepted.
-                                  -- Takes the connection socket and remote end
-                                  -- address.
-  -> m ThreadId
-acceptFork lsock k = liftIO (S.acceptFork lsock k)
-{-# INLINE acceptFork #-}
 
 --------------------------------------------------------------------------------
 
