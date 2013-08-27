@@ -47,8 +47,6 @@ library
     exposed-modules:
         Pipes.Network.TCP
         Pipes.Network.TCP.Safe
-    other-modules:
-        Pipes.Network.Internal
     ghc-options: -Wall
 
 test-suite simple
