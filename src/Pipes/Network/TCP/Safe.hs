@@ -4,15 +4,15 @@
 -- release 'NS.Socket' resources within a /Pipes/ pipeline, by relying on
 -- @pipes-safe@.
 --
--- This module is meant to be used together with "Pipes.Network.TCP", and as
--- such it overrides some functions from "Network.Simple.TCP" so that they use
--- 'Ps.MonadSafe' instead of 'IO' as their base monad. It also exports
--- 'Producer's and 'Consumer's that establish a TCP connection and interact
--- with it in a streaming fashion at once.
+-- This module is meant to be used as a replacement of "Pipes.Network.TCP",
+-- and as such it overrides some functions from "Network.Simple.TCP" so that
+-- they use 'Ps.MonadSafe' instead of 'IO' as their base monad. Additionally,
+-- It also exports pipes that establish a TCP connection and interact with
+-- it in a streaming fashion at once.
 --
 -- If you just want to use 'NS.Socket' obtained outside the /Pipes/ pipeline,
--- then you can just ignore this module and use the simpler functions exported
--- by "Pipes.Network.TCP" directly.
+-- then you can just ignore this module and use the simpler module
+-- "Pipes.Network.TCP" instead.
 
 module Pipes.Network.TCP.Safe (
   -- * Streaming
@@ -46,18 +46,11 @@ import           Pipes.Network.TCP      (fromSocket, fromSocketN, toSocket)
 import qualified Pipes.Safe             as Ps
 
 --------------------------------------------------------------------------------
+
 -- $network-simple-upgrades
 --
 -- The following functions are analogous versions of those exported by
 -- "Network.Simple.TCP", but compatible with 'Ps.MonadSafe'.
---
---------------------------------------------------------------------------------
--- $exports
---
--- Except for the overriden 'connect', 'serve', 'listen' and 'accept' functions
--- above, the rest of the "Pipes.Network.TCP" and "Network.Simple.TCP" modules
--- are exported entirely as they are.
---------------------------------------------------------------------------------
 
 connect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
@@ -214,4 +207,12 @@ serveWrite hp port = do
       accept lsock $ \(csock,_) -> do
          toSocket csock
 
+--------------------------------------------------------------------------------
 
+-- $exports
+--
+-- Except for the overriden 'connect', 'serve', 'listen' and 'accept' functions
+-- above, the rest of the "Pipes.Network.TCP" and "Network.Simple.TCP" modules
+-- are exported entirely as they are.
+
+--------------------------------------------------------------------------------
