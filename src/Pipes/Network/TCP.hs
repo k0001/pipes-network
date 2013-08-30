@@ -107,7 +107,7 @@ toSocket
   :: MonadIO m
   => Socket  -- ^Connected socket.
   -> Consumer B.ByteString m r
-toSocket sock = cat //> send sock
+toSocket sock = for cat (\a -> send sock a)
 {-# INLINE toSocket #-}
 
 --------------------------------------------------------------------------------
