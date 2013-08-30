@@ -1,0 +1,4 @@
+git://github.com/Gabriel439/Haskell-Pipes-Library.git master
+git://github.com/Gabriel439/Haskell-Pipes-Safe-Library.git master
+git://github.com/k0001/network-simple.git master
+./
