@@ -22,6 +22,7 @@ module Pipes.Network.TCP (
   , toSocket
   , toSocketTimeout
   -- * Exports
+  -- $exports
   , module Network.Simple.TCP
   ) where
 
@@ -147,4 +148,10 @@ toSocketTimeout
 toSocketTimeout wait sock =
     for cat (\a -> P.maybeP (liftIO (timeout wait (NSB.sendAll sock a))))
 {-# INLINE toSocketTimeout #-}
+
+--------------------------------------------------------------------------------
+
+-- $exports
+--
+-- The entire "Network.Simple.TCP" module is re-exported.
 
