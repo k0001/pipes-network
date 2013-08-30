@@ -103,7 +103,7 @@ accept lsock k = do
 -- which prints whatever is received from a single TCP connection to a given
 -- server listening locally on port 9000, in chunks of up to 4096 bytes:
 --
--- >>> runSafeT . runEffect $ fromConnect Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
+-- >>> runSafeT . runEffect $ fromConnect 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
 fromConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int             -- ^Maximum number of bytes to receive and send
@@ -126,7 +126,7 @@ fromConnect nbytes host port = do
 -- which greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toConnect Nothing "127.0.0.1" "9000"
+-- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toConnect "127.0.0.1" "9000"
 toConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostName        -- ^Server host name.
@@ -162,7 +162,7 @@ toConnect hp port = do
 -- in chunks of up to 4096 bytes.
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ fromServe Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
+-- >>> runSafeT . runEffect $ fromServe 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
 fromServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int             -- ^Maximum number of bytes to receive and send
@@ -187,7 +187,7 @@ fromServe nbytes hp port = do
 -- which greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toServe Nothing "127.0.0.1" "9000"
+-- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toServe "127.0.0.1" "9000"
 toServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostPreference  -- ^Preferred host to bind.
