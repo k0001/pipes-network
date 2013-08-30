@@ -31,6 +31,10 @@ import           Control.Monad.Trans.Maybe      (MaybeT)
 import qualified Data.ByteString                as B
 import qualified Network.Socket.ByteString      as NSB
 import           Network.Simple.TCP
+                  (connect, serve, listen, accept, acceptFork,
+                   bindSock, connectSock, recv, send, withSocketsDo,
+                   HostName, HostPreference(HostAny, HostIPv4, HostIPv6, Host),
+                   ServiceName, SockAddr, Socket)
 import           Pipes
 import           Pipes.Core
 import qualified Pipes.Lift                     as P
@@ -153,5 +157,19 @@ toSocketTimeout wait sock =
 
 -- $exports
 --
--- The entire "Network.Simple.TCP" module is re-exported.
-
+-- [From "Network.Simple.TCP"]
+--     'accept',
+--     'acceptFork',
+--     'bindSock',
+--     'connect',
+--     'connectSock',
+--     'HostName',
+--     'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
+--     'listen',
+--     'recv',
+--     'send',
+--     'serve',
+--     'ServiceName',
+--     'SockAddr',
+--     'Socket',
+--     'withSocketsDo'.

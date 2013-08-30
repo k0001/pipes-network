@@ -34,18 +34,23 @@ module Pipes.Network.TCP.Safe (
   -- $exports
   , module Pipes.Network.TCP
   , module Network.Simple.TCP
+  , module Pipes.Safe
   ) where
 
 import           Control.Monad
 import           Control.Monad.IO.Class (MonadIO(liftIO))
 import qualified Data.ByteString        as B
-import           Network.Simple.TCP     hiding (connect, serve, listen, accept)
+import           Network.Simple.TCP
+                  (acceptFork, bindSock, connectSock, recv, send, withSocketsDo,
+                   HostName, HostPreference(HostAny, HostIPv4, HostIPv6, Host),
+                   ServiceName, SockAddr, Socket)
 import qualified Network.Socket         as NS
 import           Pipes
 import           Pipes.Network.TCP      (fromSocket, fromSocketTimeout,
                                          fromSocketN, fromSocketTimeoutN,
                                          toSocket, toSocketTimeout)
 import qualified Pipes.Safe             as Ps
+import           Pipes.Safe             (runSafeT)
 
 --------------------------------------------------------------------------------
 
@@ -202,7 +207,27 @@ toServe hp port = do
 
 -- $exports
 --
--- Except for the overriden 'connect', 'serve', 'listen' and 'accept' functions
--- above, the rest of the "Pipes.Network.TCP" and "Network.Simple.TCP" modules
--- are exported entirely as they are.
+-- [From "Pipes.Network.TCP"]
+--    'fromSocket',
+--    'fromSocketN',
+--    'fromSocketTimeout',
+--    'fromSocketTimeoutN',
+--    'toSocket',
+--    'toSocketTimeout'.
+--
+-- [From "Network.Simple.TCP"]
+--    'acceptFork',
+--    'bindSock',
+--    'connectSock',
+--    'HostName',
+--    'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
+--    'recv',
+--    'send',
+--    'ServiceName',
+--    'SockAddr',
+--    'Socket',
+--    'withSocketsDo'.
+--
+-- [From "Pipes.Safe"]
+--    'Ps.runSafeT'.
 
