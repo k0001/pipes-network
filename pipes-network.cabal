@@ -22,9 +22,9 @@ description:
   * "Pipes.Network.TCP" exports pipes for using TCP connections in a streaming
   fashion.
   .
-  * "Pipes.Network.TCP.Safe" complements "Pipes.Network.TCP" by providing
-  functions that allow you to safely establish new TCP connections within
-  a pipeline.
+  * "Pipes.Network.TCP.Safe" subsumes "Pipes.Network.TCP", exporting pipes
+  that allow you to safely establish new TCP connections within a pipeline
+  using the @pipes-safe@ facilities.
   .
   See the @NEWS@ file in the source distribution to learn about any
   important changes between version.
