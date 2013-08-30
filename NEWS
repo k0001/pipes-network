@@ -1,13 +1,9 @@
 # Version HEAD
 
-* Upgrade to pipes-4.0.0 and pipes-safe-2.0.0
+* Significantly upgraded the API and renamed functions to play well with
+  pipes-4.0.0, pipes-safe-2.0.0 and network-simple-0.3.0.
 
-* `socketWriteD` and other `*Write*D` proxies are now `Consumer`s.
-
-* Removed the `D` and `S` suffixes from proxies.
-
-* Use `ErrorT` from the `transformers` package instead of `EitherT` from
-  the `either` package.
+* Use `MaybeT` to report timeout errors, delete the `Timeout` data-type.
 
 
 # Version 0.5.1.0
