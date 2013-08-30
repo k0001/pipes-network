@@ -18,12 +18,12 @@ module Pipes.Network.TCP.Safe (
   -- * Streaming
   -- ** Client side
   -- $client-streaming
-    connectRead
-  , connectWrite
+    fromConnect
+  , toConnect
   -- ** Server side
   -- $server-streaming
-  , serveRead
-  , serveWrite
+  , fromServe
+  , toServe
   -- * @MonadSafe@-compatible upgrades
   -- $network-simple-upgrades
   , connect
@@ -114,8 +114,8 @@ accept lsock k = do
 -- which prints whatever is received from a single TCP connection to a given
 -- server listening locally on port 9000, in chunks of up to 4096 bytes:
 --
--- >>> runSafeT . runEffect $ connectRead Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
-connectRead
+-- >>> runSafeT . runEffect $ fromConnect Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
+fromConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
@@ -124,7 +124,7 @@ connectRead
   -> NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> Producer B.ByteString m ()
-connectRead nbytes host port = do
+fromConnect nbytes host port = do
    connect host port $ \(csock,_) -> do
       fromSocket csock nbytes
 
@@ -137,13 +137,13 @@ connectRead nbytes host port = do
 -- which greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> connectWrite Nothing "127.0.0.1" "9000"
-connectWrite
+-- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toConnect Nothing "127.0.0.1" "9000"
+toConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => NS.HostName        -- ^Server host name.
   -> NS.ServiceName     -- ^Server service port.
   -> Consumer B.ByteString m r
-connectWrite hp port = do
+toConnect hp port = do
    connect hp port $ \(csock,_) -> do
       toSocket csock
 
@@ -173,8 +173,8 @@ connectWrite hp port = do
 -- in chunks of up to 4096 bytes.
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ serveRead Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
-serveRead
+-- >>> runSafeT . runEffect $ fromServe Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
+fromServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int                -- ^Maximum number of bytes to receive and send
                         -- dowstream at once. Any positive value is fine, the
@@ -183,7 +183,7 @@ serveRead
   -> HostPreference     -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> Producer B.ByteString m ()
-serveRead nbytes hp port = do
+fromServe nbytes hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
          fromSocket csock nbytes
@@ -198,13 +198,13 @@ serveRead nbytes hp port = do
 -- which greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> serveWrite Nothing "127.0.0.1" "9000"
-serveWrite
+-- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toServe Nothing "127.0.0.1" "9000"
+toServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostPreference     -- ^Preferred host to bind.
   -> NS.ServiceName     -- ^Service port to bind.
   -> Consumer B.ByteString m r
-serveWrite hp port = do
+toServe hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
          toSocket csock
