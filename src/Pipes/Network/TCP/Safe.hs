@@ -42,7 +42,9 @@ import qualified Data.ByteString        as B
 import           Network.Simple.TCP     hiding (connect, serve, listen, accept)
 import qualified Network.Socket         as NS
 import           Pipes
-import           Pipes.Network.TCP      (fromSocket, fromSocketN, toSocket)
+import           Pipes.Network.TCP      (fromSocket, fromSocketTimeout,
+                                         fromSocketN, fromSocketTimeoutN,
+                                         toSocket, toSocketTimeout)
 import qualified Pipes.Safe             as Ps
 
 --------------------------------------------------------------------------------
@@ -215,4 +217,3 @@ serveWrite hp port = do
 -- above, the rest of the "Pipes.Network.TCP" and "Network.Simple.TCP" modules
 -- are exported entirely as they are.
 
---------------------------------------------------------------------------------
