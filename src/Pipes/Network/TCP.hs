@@ -1,12 +1,12 @@
 {-# LANGUAGE RankNTypes #-}
 
 -- | This minimal module exports facilities that ease the usage of TCP
--- 'NS.Socket's in the /Pipes ecosystem/. It is meant to be used together with
+-- 'Socket's in the /Pipes ecosystem/. It is meant to be used together with
 -- the "Network.Simple.TCP" module from the @network-simple@ package, which is
 -- completely re-exported from this module.
 --
 -- This module /does not/ export facilities that would allow you to acquire new
--- 'NS.Socket's within a pipeline. If you need to do so, then you should use
+-- 'Socket's within a pipeline. If you need to do so, then you should use
 -- "Pipes.Network.TCP.Safe" instead, which exports a similar API to the one
 -- exported by this module.
 
@@ -28,7 +28,6 @@ module Pipes.Network.TCP (
 import           Control.Monad.IO.Class         (MonadIO(liftIO))
 import           Control.Monad.Trans.Maybe      (MaybeT)
 import qualified Data.ByteString                as B
-import qualified Network.Socket                 as NS
 import qualified Network.Socket.ByteString      as NSB
 import           Network.Simple.TCP
 import           Pipes
@@ -46,7 +45,7 @@ import           System.Timeout                 (timeout)
 -- 'Network.Simple.TCP.recv', which happens to be an 'Effect'':
 --
 -- @
--- 'Network.Simple.TCP.recv' :: 'MonadIO' m => 'NS.Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
+-- 'Network.Simple.TCP.recv' :: 'MonadIO' m => 'Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
 -- @
 
 
@@ -59,7 +58,7 @@ import           System.Timeout                 (timeout)
 -- or EOF is received.
 fromSocket
   :: MonadIO m
-  => NS.Socket  -- ^Connected socket.
+  => Socket     -- ^Connected socket.
   -> Int        -- ^Maximum number of bytes to receive and send
                 -- dowstream at once. Any positive value is fine, the
                 -- optimal value depends on how you deal with the
@@ -76,7 +75,7 @@ fromSocket sock nbytes = loop where
 
 -- | Like 'fromSocket', except the downstream pipe can specify the maximum
 -- number of bytes to receive at once using 'request'.
-fromSocketN :: MonadIO m => NS.Socket -> Int -> Server Int B.ByteString m ()
+fromSocketN :: MonadIO m => Socket -> Int -> Server Int B.ByteString m ()
 fromSocketN sock = loop where
     loop = \nbytes -> do
         bs <- liftIO (NSB.recv sock nbytes)
@@ -95,13 +94,13 @@ fromSocketN sock = loop where
 -- 'Network.Simple.TCP.send', which happens to be an 'Effect'':
 --
 -- @
--- 'Network.Simple.TCP.send' :: 'MonadIO' m => 'NS.Socket' -> 'B.ByteString' -> 'Effect'' m ()
+-- 'Network.Simple.TCP.send' :: 'MonadIO' m => 'Socket' -> 'B.ByteString' -> 'Effect'' m ()
 -- @
 
 -- | Sends to the remote end each 'B.ByteString' received from upstream.
 toSocket
   :: MonadIO m
-  => NS.Socket  -- ^Connected socket.
+  => Socket  -- ^Connected socket.
   -> Consumer B.ByteString m r
 toSocket sock = cat //> send sock
 {-# INLINE toSocket #-}
@@ -114,7 +113,7 @@ toSocket sock = cat //> send sock
 -- transformer. The time is specified in microseconds (10e6).
 fromSocketTimeout
   :: MonadIO m
-  => Int -> NS.Socket -> Int -> Producer B.ByteString (MaybeT m) ()
+  => Int -> Socket -> Int -> Producer B.ByteString (MaybeT m) ()
 fromSocketTimeout wait sock nbytes = P.maybeP loop where
     loop = do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
@@ -129,7 +128,7 @@ fromSocketTimeout wait sock nbytes = P.maybeP loop where
 -- transformer. The time is specified in microseconds (10e6).
 fromSocketTimeoutN
   :: MonadIO m
-  => Int -> NS.Socket -> Int -> Server Int B.ByteString (MaybeT m) ()
+  => Int -> Socket -> Int -> Server Int B.ByteString (MaybeT m) ()
 fromSocketTimeoutN wait sock = P.maybeP . loop where
     loop = \nbytes -> do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
@@ -144,7 +143,7 @@ fromSocketTimeoutN wait sock = P.maybeP . loop where
 -- transformer. The time is specified in microseconds (10e6).
 toSocketTimeout
   :: MonadIO m
-  => Int -> NS.Socket -> Consumer B.ByteString (MaybeT m) r
+  => Int -> Socket -> Consumer B.ByteString (MaybeT m) r
 toSocketTimeout wait sock =
     for cat (\a -> P.maybeP (liftIO (timeout wait (NSB.sendAll sock a))))
 {-# INLINE toSocketTimeout #-}

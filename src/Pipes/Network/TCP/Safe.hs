@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types, TypeFamilies #-}
 
 -- | This module exports facilities allowing you to safely obtain, use and
--- release 'NS.Socket' resources within a /Pipes/ pipeline, by relying on
+-- release 'Socket' resources within a /Pipes/ pipeline, by relying on
 -- @pipes-safe@.
 --
 -- This module is meant to be used as a replacement of "Pipes.Network.TCP",
@@ -10,7 +10,7 @@
 -- It also exports pipes that establish a TCP connection and interact with
 -- it in a streaming fashion at once.
 --
--- If you just want to use 'NS.Socket' obtained outside the /Pipes/ pipeline,
+-- If you just want to use 'Socket' obtained outside the /Pipes/ pipeline,
 -- then you can just ignore this module and use the simpler module
 -- "Pipes.Network.TCP" instead.
 
@@ -56,29 +56,20 @@ import qualified Pipes.Safe             as Ps
 
 connect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => NS.HostName
-  -> NS.ServiceName
-  -> ((NS.Socket, NS.SockAddr) -> m r)
-  -> m r
+  => HostName -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 connect host port = Ps.bracket (connectSock host port)
                                (NS.sClose . fst)
 
 serve
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => HostPreference
-  -> NS.ServiceName
-  -> ((NS.Socket, NS.SockAddr) -> IO ())
-  -> m r
+  => HostPreference -> ServiceName -> ((Socket, SockAddr) -> IO ()) -> m r
 serve hp port k = do
    listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
 listen
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => HostPreference
-  -> NS.ServiceName
-  -> ((NS.Socket, NS.SockAddr) -> m r)
-  -> m r
+  => HostPreference -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 listen hp port = Ps.bracket listen' (NS.sClose . fst)
   where
     listen' = do x@(bsock,_) <- bindSock hp port
@@ -87,9 +78,7 @@ listen hp port = Ps.bracket listen' (NS.sClose . fst)
 
 accept
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => NS.Socket
-  -> ((NS.Socket, NS.SockAddr) -> m r)
-  -> m r
+  => Socket -> ((Socket, SockAddr) -> m r) -> m r
 accept lsock k = do
     conn@(csock,_) <- liftIO (NS.accept lsock)
     Ps.finally (k conn) (NS.sClose csock)
@@ -117,12 +106,12 @@ accept lsock k = do
 -- >>> runSafeT . runEffect $ fromConnect Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
 fromConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => Int                -- ^Maximum number of bytes to receive and send
-                        -- dowstream at once. Any positive value is fine, the
-                        -- optimal value depends on how you deal with the
-                        -- received data. Try using @4096@ if you don't care.
-  -> NS.HostName        -- ^Server host name.
-  -> NS.ServiceName     -- ^Server service port.
+  => Int             -- ^Maximum number of bytes to receive and send
+                     -- dowstream at once. Any positive value is fine, the
+                     -- optimal value depends on how you deal with the
+                     -- received data. Try using @4096@ if you don't care.
+  -> HostName        -- ^Server host name.
+  -> ServiceName     -- ^Server service port.
   -> Producer B.ByteString m ()
 fromConnect nbytes host port = do
    connect host port $ \(csock,_) -> do
@@ -140,8 +129,8 @@ fromConnect nbytes host port = do
 -- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toConnect Nothing "127.0.0.1" "9000"
 toConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => NS.HostName        -- ^Server host name.
-  -> NS.ServiceName     -- ^Server service port.
+  => HostName        -- ^Server host name.
+  -> ServiceName     -- ^Server service port.
   -> Consumer B.ByteString m r
 toConnect hp port = do
    connect hp port $ \(csock,_) -> do
@@ -176,12 +165,12 @@ toConnect hp port = do
 -- >>> runSafeT . runEffect $ fromServe Nothing 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
 fromServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => Int                -- ^Maximum number of bytes to receive and send
-                        -- dowstream at once. Any positive value is fine, the
-                        -- optimal value depends on how you deal with the
-                        -- received data. Try using @4096@ if you don't care.
-  -> HostPreference     -- ^Preferred host to bind.
-  -> NS.ServiceName     -- ^Service port to bind.
+  => Int             -- ^Maximum number of bytes to receive and send
+                     -- dowstream at once. Any positive value is fine, the
+                     -- optimal value depends on how you deal with the
+                     -- received data. Try using @4096@ if you don't care.
+  -> HostPreference  -- ^Preferred host to bind.
+  -> ServiceName     -- ^Service port to bind.
   -> Producer B.ByteString m ()
 fromServe nbytes hp port = do
    listen hp port $ \(lsock,_) -> do
@@ -201,8 +190,8 @@ fromServe nbytes hp port = do
 -- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toServe Nothing "127.0.0.1" "9000"
 toServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
-  => HostPreference     -- ^Preferred host to bind.
-  -> NS.ServiceName     -- ^Service port to bind.
+  => HostPreference  -- ^Preferred host to bind.
+  -> ServiceName     -- ^Service port to bind.
   -> Consumer B.ByteString m r
 toServe hp port = do
    listen hp port $ \(lsock,_) -> do
