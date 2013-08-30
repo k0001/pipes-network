@@ -151,7 +151,7 @@ toSocketTimeout
   => Int -> Socket -> Consumer B.ByteString (MaybeT m) r
 toSocketTimeout wait sock =
     for cat (\a -> P.maybeP (liftIO (timeout wait (NSB.sendAll sock a))))
-{-# INLINE toSocketTimeout #-}
+{-# INLINABLE toSocketTimeout #-}
 
 --------------------------------------------------------------------------------
 
