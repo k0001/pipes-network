@@ -19,12 +19,14 @@ description:
   .
   This package is organized using the following namespaces:
   .
-  * "Pipes.Network.TCP" exports pipes for using TCP connections in a streaming
-  fashion.
+  * "Pipes.Network.TCP" exports pipes and utilities for using TCP connections in
+  a streaming fashion.
   .
-  * "Pipes.Network.TCP.Safe" subsumes "Pipes.Network.TCP", exporting pipes
-  that allow you to safely establish new TCP connections within a pipeline
-  using the @pipes-safe@ facilities.
+  * "Pipes.Network.TCP.Safe" subsumes "Pipes.Network.TCP", exporting pipes and
+  functions that allow you to safely establish new TCP connections within a
+  pipeline using the @pipes-safe@ facilities. You only need to use this module
+  if you want to safely acquire and release operating system resources within a
+  pipeline.
   .
   See the @NEWS@ file in the source distribution to learn about any
   important changes between version.
