@@ -46,9 +46,9 @@ import           Network.Simple.TCP
                    ServiceName, SockAddr, Socket)
 import qualified Network.Socket         as NS
 import           Pipes
-import           Pipes.Network.TCP      (fromSocket, fromSocketTimeout,
-                                         fromSocketN, fromSocketTimeoutN,
-                                         toSocket, toSocketTimeout)
+import           Pipes.Network.TCP
+                  (fromSocket, fromSocketTimeout, fromSocketN,
+                   fromSocketTimeoutN, toSocket, toSocketTimeout)
 import qualified Pipes.Safe             as Ps
 import           Pipes.Safe             (runSafeT)
 
