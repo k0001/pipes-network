@@ -27,8 +27,8 @@ module Pipes.Network.TCP (
   ) where
 
 import           Control.Monad.IO.Class         (MonadIO(liftIO))
-import           Control.Monad.Trans.Maybe      (MaybeT)
 import qualified Data.ByteString                as B
+import           Foreign.C.Error                (errnoToIOError, eTIMEDOUT)
 import qualified Network.Socket.ByteString      as NSB
 import           Network.Simple.TCP
                   (connect, serve, listen, accept, acceptFork,
@@ -37,7 +37,6 @@ import           Network.Simple.TCP
                    ServiceName, SockAddr, Socket)
 import           Pipes
 import           Pipes.Core
-import qualified Pipes.Lift                     as P
 import           System.Timeout                 (timeout)
 
 --------------------------------------------------------------------------------
@@ -114,43 +113,49 @@ toSocket sock = for cat (\a -> send sock a)
 
 -- | Like 'fromSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
--- time elapses before the interaction finishes, then fail in the 'MaybeT' monad
--- transformer. The time is specified in microseconds (10e6).
+-- time elapses before the interaction finishes, then an 'IOError' exception is
+-- thrown. The time is specified in microseconds (10e6).
 fromSocketTimeout
   :: MonadIO m
-  => Int -> Socket -> Int -> Producer B.ByteString (MaybeT m) ()
-fromSocketTimeout wait sock nbytes = P.maybeP loop where
+  => Int -> Socket -> Int -> Producer B.ByteString m ()
+fromSocketTimeout wait sock nbytes = loop where
     loop = do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
        case mbs of
-          Nothing -> return Nothing
           Just bs -> yield bs >> loop
+          Nothing -> liftIO $ ioError $ errnoToIOError
+             "Pipes.Network.TCP.fromSocketTimeout" eTIMEDOUT Nothing Nothing
 {-# INLINABLE fromSocketTimeout #-}
 
 -- | Like 'fromSocketN', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
--- time elapses before the interaction finishes, then fail in the 'MaybeT' monad
--- transformer. The time is specified in microseconds (10e6).
+-- time elapses before the interaction finishes, then an 'IOError' exception is
+-- thrown. The time is specified in microseconds (10e6).
 fromSocketTimeoutN
   :: MonadIO m
-  => Int -> Socket -> Int -> Server Int B.ByteString (MaybeT m) ()
-fromSocketTimeoutN wait sock = P.maybeP . loop where
+  => Int -> Socket -> Int -> Server Int B.ByteString m ()
+fromSocketTimeoutN wait sock = loop where
     loop = \nbytes -> do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
        case mbs of
-          Nothing -> return Nothing
           Just bs -> respond bs >>= loop
+          Nothing -> liftIO $ ioError $ errnoToIOError
+             "Pipes.Network.TCP.fromSocketTimeoutN" eTIMEDOUT Nothing Nothing
 {-# INLINABLE fromSocketTimeoutN #-}
 
 -- | Like 'toSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
--- time elapses before the interaction finishes, then fail in the 'MaybeT' monad
--- transformer. The time is specified in microseconds (10e6).
+-- time elapses before the interaction finishes, then an 'IOError' exception is
+-- thrown. The time is specified in microseconds (10e6).
 toSocketTimeout
   :: MonadIO m
-  => Int -> Socket -> Consumer B.ByteString (MaybeT m) r
-toSocketTimeout wait sock =
-    for cat (\a -> P.maybeP (liftIO (timeout wait (NSB.sendAll sock a))))
+  => Int -> Socket -> Consumer B.ByteString m r
+toSocketTimeout wait sock = for cat $ \a -> do
+    mu <- liftIO (timeout wait (NSB.sendAll sock a))
+    case mu of
+       Just () -> return ()
+       Nothing -> liftIO $ ioError $ errnoToIOError
+          "Pipes.Network.TCP.toSocketTimeout" eTIMEDOUT Nothing Nothing
 {-# INLINABLE toSocketTimeout #-}
 
 --------------------------------------------------------------------------------
