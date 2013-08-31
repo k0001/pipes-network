@@ -58,7 +58,7 @@ import           System.Timeout                 (timeout)
 -- The number of bytes received at once is always in the interval
 -- /[1 .. specified maximum]/.
 --
--- This 'Producer' returns if the remote peer closes its side of the connection
+-- This 'Producer'' returns if the remote peer closes its side of the connection
 -- or EOF is received.
 fromSocket
   :: MonadIO m
@@ -67,7 +67,7 @@ fromSocket
                 -- dowstream at once. Any positive value is fine, the
                 -- optimal value depends on how you deal with the
                 -- received data. Try using @4096@ if you don't care.
-  -> Producer B.ByteString m ()
+  -> Producer' B.ByteString m ()
 fromSocket sock nbytes = loop where
     loop = do
         bs <- liftIO (NSB.recv sock nbytes)
@@ -79,7 +79,7 @@ fromSocket sock nbytes = loop where
 
 -- | Like 'fromSocket', except the downstream pipe can specify the maximum
 -- number of bytes to receive at once using 'request'.
-fromSocketN :: MonadIO m => Socket -> Int -> Server Int B.ByteString m ()
+fromSocketN :: MonadIO m => Socket -> Int -> Server' Int B.ByteString m ()
 fromSocketN sock = loop where
     loop = \nbytes -> do
         bs <- liftIO (NSB.recv sock nbytes)
@@ -105,7 +105,7 @@ fromSocketN sock = loop where
 toSocket
   :: MonadIO m
   => Socket  -- ^Connected socket.
-  -> Consumer B.ByteString m r
+  -> Consumer' B.ByteString m r
 toSocket sock = for cat (\a -> send sock a)
 {-# INLINE toSocket #-}
 
@@ -117,7 +117,7 @@ toSocket sock = for cat (\a -> send sock a)
 -- thrown. The time is specified in microseconds (10e6).
 fromSocketTimeout
   :: MonadIO m
-  => Int -> Socket -> Int -> Producer B.ByteString m ()
+  => Int -> Socket -> Int -> Producer' B.ByteString m ()
 fromSocketTimeout wait sock nbytes = loop where
     loop = do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
@@ -133,7 +133,7 @@ fromSocketTimeout wait sock nbytes = loop where
 -- thrown. The time is specified in microseconds (10e6).
 fromSocketTimeoutN
   :: MonadIO m
-  => Int -> Socket -> Int -> Server Int B.ByteString m ()
+  => Int -> Socket -> Int -> Server' Int B.ByteString m ()
 fromSocketTimeoutN wait sock = loop where
     loop = \nbytes -> do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
@@ -149,7 +149,7 @@ fromSocketTimeoutN wait sock = loop where
 -- thrown. The time is specified in microseconds (10e6).
 toSocketTimeout
   :: MonadIO m
-  => Int -> Socket -> Consumer B.ByteString m r
+  => Int -> Socket -> Consumer' B.ByteString m r
 toSocketTimeout wait sock = for cat $ \a -> do
     mu <- liftIO (timeout wait (NSB.sendAll sock a))
     case mu of

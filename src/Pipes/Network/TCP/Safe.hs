@@ -104,7 +104,7 @@ accept lsock k = do
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- Using this 'Producer' you can write straightforward code like the following,
+-- Using this 'Producer'' you can write straightforward code like the following,
 -- which prints whatever is received from a single TCP connection to a given
 -- server listening locally on port 9000, in chunks of up to 4096 bytes:
 --
@@ -117,7 +117,7 @@ fromConnect
                      -- received data. Try using @4096@ if you don't care.
   -> HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
-  -> Producer B.ByteString m ()
+  -> Producer' B.ByteString m ()
 fromConnect nbytes host port = do
    connect host port $ \(csock,_) -> do
       fromSocket csock nbytes
@@ -127,7 +127,7 @@ fromConnect nbytes host port = do
 --
 -- The connection socket is closed in case of exceptions.
 --
--- Using this 'Consumer' you can write straightforward code like the following,
+-- Using this 'Consumer'' you can write straightforward code like the following,
 -- which greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
@@ -136,7 +136,7 @@ toConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
-  -> Consumer B.ByteString m r
+  -> Consumer' B.ByteString m r
 toConnect hp port = do
    connect hp port $ \(csock,_) -> do
       toSocket csock
@@ -156,13 +156,13 @@ toConnect hp port = do
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- This 'Producer' returns if the remote peer closes its side of the connection
+-- This 'Producer'' returns if the remote peer closes its side of the connection
 -- or EOF is received.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
--- Using this 'Producer' you can write straightforward code like the following,
+-- Using this 'Producer'' you can write straightforward code like the following,
 -- which prints whatever is received from a single TCP connection to port 9000,
 -- in chunks of up to 4096 bytes.
 --
@@ -176,7 +176,7 @@ fromServe
                      -- received data. Try using @4096@ if you don't care.
   -> HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
-  -> Producer B.ByteString m ()
+  -> Producer' B.ByteString m ()
 fromServe nbytes hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
@@ -188,7 +188,7 @@ fromServe nbytes hp port = do
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
--- Using this 'Consumer' you can write straightforward code like the following,
+-- Using this 'Consumer'' you can write straightforward code like the following,
 -- which greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
@@ -197,7 +197,7 @@ toServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
-  -> Consumer B.ByteString m r
+  -> Consumer' B.ByteString m r
 toServe hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
