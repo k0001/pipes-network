@@ -3,7 +3,8 @@
 * Significantly upgraded the API and renamed functions to play well with
   pipes-4.0.0, pipes-safe-2.0.0 and network-simple-0.3.0.
 
-* Use `MaybeT` to report timeout errors, delete the `Timeout` data-type.
+* Throw `IOError` in `IO` in order to report timeout errors. Delete
+  the `Timeout` data-type.
 
 
 # Version 0.5.1.0
