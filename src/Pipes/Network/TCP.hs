@@ -8,14 +8,18 @@
 -- This module /does not/ export facilities that would allow you to acquire new
 -- 'Socket's within a pipeline. If you need to do so, then you should use
 -- "Pipes.Network.TCP.Safe" instead, which exports a similar API to the one
--- exported by this module.
+-- exported by this module. However, don't be confused by the word “safe” in
+-- that module; this module is equally safe to use as long as you don't try to
+-- acquire resources within the pipeline.
 
 module Pipes.Network.TCP (
   -- * Receiving
   -- $receiving
     fromSocket
-  , fromSocketN
   , fromSocketTimeout
+  -- ** Bidirectional pipes
+  -- $bidirectional
+  , fromSocketN
   , fromSocketTimeoutN
   -- * Sending
   -- $sending
@@ -52,6 +56,7 @@ import           System.Timeout                 (timeout)
 -- 'Network.Simple.TCP.recv' :: 'MonadIO' m => 'Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
 -- @
 
+--------------------------------------------------------------------------------
 
 -- | Receives bytes from the remote end sends them downstream.
 --
@@ -76,6 +81,31 @@ fromSocket sock nbytes = loop where
            else yield bs >> loop
 {-# INLINABLE fromSocket #-}
 
+-- | Like 'fromSocket', except with the first 'Int' argument you can specify
+-- the maximum time that each interaction with the remote end can take. If such
+-- time elapses before the interaction finishes, then an 'IOError' exception is
+-- thrown. The time is specified in microseconds (10e6).
+fromSocketTimeout
+  :: MonadIO m
+  => Int -> Socket -> Int -> Producer' B.ByteString m ()
+fromSocketTimeout wait sock nbytes = loop where
+    loop = do
+       mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
+       case mbs of
+          Just bs -> yield bs >> loop
+          Nothing -> liftIO $ ioError $ errnoToIOError
+             "Pipes.Network.TCP.fromSocketTimeout" eTIMEDOUT Nothing Nothing
+{-# INLINABLE fromSocketTimeout #-}
+
+--------------------------------------------------------------------------------
+
+-- $bidirectional
+--
+-- The following pipes are bidirectional, which means useful data can flow
+-- through them upstream and downstream. If you don't care about bidirectional
+-- pipes, just skip this section.
+
+--------------------------------------------------------------------------------
 
 -- | Like 'fromSocket', except the downstream pipe can specify the maximum
 -- number of bytes to receive at once using 'request'.
@@ -87,6 +117,23 @@ fromSocketN sock = loop where
            then return ()
            else respond bs >>= loop
 {-# INLINABLE fromSocketN #-}
+
+
+-- | Like 'fromSocketN', except with the first 'Int' argument you can specify
+-- the maximum time that each interaction with the remote end can take. If such
+-- time elapses before the interaction finishes, then an 'IOError' exception is
+-- thrown. The time is specified in microseconds (10e6).
+fromSocketTimeoutN
+  :: MonadIO m
+  => Int -> Socket -> Int -> Server' Int B.ByteString m ()
+fromSocketTimeoutN wait sock = loop where
+    loop = \nbytes -> do
+       mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
+       case mbs of
+          Just bs -> respond bs >>= loop
+          Nothing -> liftIO $ ioError $ errnoToIOError
+             "Pipes.Network.TCP.fromSocketTimeoutN" eTIMEDOUT Nothing Nothing
+{-# INLINABLE fromSocketTimeoutN #-}
 
 --------------------------------------------------------------------------------
 
@@ -108,40 +155,6 @@ toSocket
   -> Consumer' B.ByteString m r
 toSocket sock = for cat (\a -> send sock a)
 {-# INLINE toSocket #-}
-
---------------------------------------------------------------------------------
-
--- | Like 'fromSocket', except with the first 'Int' argument you can specify
--- the maximum time that each interaction with the remote end can take. If such
--- time elapses before the interaction finishes, then an 'IOError' exception is
--- thrown. The time is specified in microseconds (10e6).
-fromSocketTimeout
-  :: MonadIO m
-  => Int -> Socket -> Int -> Producer' B.ByteString m ()
-fromSocketTimeout wait sock nbytes = loop where
-    loop = do
-       mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
-       case mbs of
-          Just bs -> yield bs >> loop
-          Nothing -> liftIO $ ioError $ errnoToIOError
-             "Pipes.Network.TCP.fromSocketTimeout" eTIMEDOUT Nothing Nothing
-{-# INLINABLE fromSocketTimeout #-}
-
--- | Like 'fromSocketN', except with the first 'Int' argument you can specify
--- the maximum time that each interaction with the remote end can take. If such
--- time elapses before the interaction finishes, then an 'IOError' exception is
--- thrown. The time is specified in microseconds (10e6).
-fromSocketTimeoutN
-  :: MonadIO m
-  => Int -> Socket -> Int -> Server' Int B.ByteString m ()
-fromSocketTimeoutN wait sock = loop where
-    loop = \nbytes -> do
-       mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
-       case mbs of
-          Just bs -> respond bs >>= loop
-          Nothing -> liftIO $ ioError $ errnoToIOError
-             "Pipes.Network.TCP.fromSocketTimeoutN" eTIMEDOUT Nothing Nothing
-{-# INLINABLE fromSocketTimeoutN #-}
 
 -- | Like 'toSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
