@@ -108,7 +108,7 @@ accept lsock k = do
 -- which prints whatever is received from a single TCP connection to a given
 -- server listening locally on port 9000, in chunks of up to 4096 bytes:
 --
--- >>> runSafeT . runEffect $ fromConnect 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
+-- >>> runSafeT . runEffect $ fromConnect 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdoutLn
 fromConnect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int             -- ^Maximum number of bytes to receive and send
@@ -167,7 +167,7 @@ toConnect hp port = do
 -- in chunks of up to 4096 bytes.
 --
 -- >>> :set -XOverloadedStrings
--- >>> runSafeT . runEffect $ fromServe 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdout
+-- >>> runSafeT . runEffect $ fromServe 4096 "127.0.0.1" "9000" >-> P.show >-> P.stdoutLn
 fromServe
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Int             -- ^Maximum number of bytes to receive and send
