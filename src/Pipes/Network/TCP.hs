@@ -154,7 +154,7 @@ toSocket
   => Socket  -- ^Connected socket.
   -> Consumer' B.ByteString m r
 toSocket sock = for cat (\a -> send sock a)
-{-# INLINE toSocket #-}
+{-# INLINABLE toSocket #-}
 
 -- | Like 'toSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
