@@ -30,7 +30,6 @@ module Pipes.Network.TCP (
   , module Network.Simple.TCP
   ) where
 
-import           Control.Monad.IO.Class         (MonadIO(liftIO))
 import qualified Data.ByteString                as B
 import           Foreign.C.Error                (errnoToIOError, eTIMEDOUT)
 import qualified Network.Socket.ByteString      as NSB
@@ -181,13 +180,15 @@ toSocketTimeout wait sock = for cat $ \a -> do
 --     'bindSock',
 --     'connect',
 --     'connectSock',
---     'HostName',
 --     'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
 --     'listen',
 --     'recv',
 --     'send',
---     'serve',
---     'ServiceName',
---     'SockAddr',
---     'Socket',
---     'withSocketsDo'.
+--     'serve'.
+--
+-- [From "Network.Socket"]
+--    'HostName',
+--    'ServiceName',
+--    'SockAddr',
+--    'Socket',
+--    'withSocketsDo'.

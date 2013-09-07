@@ -15,21 +15,21 @@
 -- "Pipes.Network.TCP" instead.
 
 module Pipes.Network.TCP.Safe (
+  -- * @MonadSafe@-compatible upgrades
+  -- $network-simple-upgrades
+    connect
+  , serve
+  , listen
+  , accept
   -- * Streaming
   -- ** Client side
   -- $client-streaming
-    fromConnect
+  , fromConnect
   , toConnect
   -- ** Server side
   -- $server-streaming
   , fromServe
   , toServe
-  -- * @MonadSafe@-compatible upgrades
-  -- $network-simple-upgrades
-  , connect
-  , serve
-  , listen
-  , accept
   -- * Exports
   -- $exports
   , module Pipes.Network.TCP
@@ -38,7 +38,6 @@ module Pipes.Network.TCP.Safe (
   ) where
 
 import           Control.Monad
-import           Control.Monad.IO.Class (MonadIO(liftIO))
 import qualified Data.ByteString        as B
 import           Network.Simple.TCP
                   (acceptFork, bindSock, connectSock, recv, send, withSocketsDo,
@@ -59,12 +58,16 @@ import           Pipes.Safe             (runSafeT)
 -- The following functions are analogous versions of those exported by
 -- "Network.Simple.TCP", but compatible with 'Ps.MonadSafe'.
 
+-- | Like 'Network.Simple.TCP.connect' from "Network.Simple.TCP", but compatible
+-- with 'Ps.MonadSafe'.
 connect
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostName -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 connect host port = Ps.bracket (connectSock host port)
                                (NS.sClose . fst)
 
+-- | Like 'Network.Simple.TCP.serve' from "Network.Simple.TCP", but compatible
+-- with 'Ps.MonadSafe'.
 serve
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> IO ()) -> m r
@@ -72,6 +75,8 @@ serve hp port k = do
    listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
+-- | Like 'Network.Simple.TCP.listen' from "Network.Simple.TCP", but compatible
+-- with 'Ps.MonadSafe'.
 listen
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
@@ -81,6 +86,8 @@ listen hp port = Ps.bracket listen' (NS.sClose . fst)
                  NS.listen bsock (max 2048 NS.maxListenQueue)
                  return x
 
+-- | Like 'Network.Simple.TCP.accept' from "Network.Simple.TCP", but compatible
+-- with 'Ps.MonadSafe'.
 accept
   :: (Ps.MonadSafe m, Ps.Base m ~ IO)
   => Socket -> ((Socket, SockAddr) -> m r) -> m r
@@ -95,7 +102,9 @@ accept lsock k = do
 --
 -- The following pipes allow you to easily connect to a TCP server and
 -- immediately interact with it in a streaming fashion, all at once, instead of
--- having to perform the individual steps separately.
+-- having to perform the individual steps separately. However, keep
+-- in mind that you'll be able to interact with the remote end in only one
+-- direction, that is, you'll either send or receive data, but not both.
 
 --------------------------------------------------------------------------------
 
@@ -147,7 +156,9 @@ toConnect hp port = do
 --
 -- The following pipes allow you to easily run a TCP server and immediately
 -- interact with incoming connections in a streaming fashion, all at once,
--- instead of having to perform the individual steps separately.
+-- instead of having to perform the individual steps separately. However, keep
+-- in mind that you'll be able to interact with the remote end in only one
+-- direction, that is, you'll either send or receive data, but not both.
 
 --------------------------------------------------------------------------------
 
@@ -219,10 +230,12 @@ toServe hp port = do
 --    'acceptFork',
 --    'bindSock',
 --    'connectSock',
---    'HostName',
 --    'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
 --    'recv',
---    'send',
+--    'send'.
+--
+-- [From "Network.Socket"]
+--    'HostName',
 --    'ServiceName',
 --    'SockAddr',
 --    'Socket',
