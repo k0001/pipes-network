@@ -48,5 +48,5 @@ library
     exposed-modules:
         Pipes.Network.TCP
         Pipes.Network.TCP.Safe
-    ghc-options: -Wall
+    ghc-options: -Wall -O2
 
