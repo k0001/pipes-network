@@ -50,18 +50,3 @@ library
         Pipes.Network.TCP.Safe
     ghc-options: -Wall
 
-test-suite simple
-    hs-source-dirs: tests
-    main-is: Simple.hs
-    type: exitcode-stdio-1.0
-    build-depends:
-        base < 5,
-        bytestring,
-        HUnit,
-        network,
-        pipes-network,
-        pipes,
-        pipes-safe,
-        transformers,
-        test-framework,
-        test-framework-hunit
