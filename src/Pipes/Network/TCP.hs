@@ -57,7 +57,7 @@ import           System.Timeout                 (timeout)
 
 --------------------------------------------------------------------------------
 
--- | Receives bytes from the remote end sends them downstream.
+-- | Receives bytes from the remote end and sends them downstream.
 --
 -- The number of bytes received at once is always in the interval
 -- /[1 .. specified maximum]/.
