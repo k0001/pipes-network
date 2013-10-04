@@ -61,15 +61,15 @@ import           Pipes.Safe             (runSafeT)
 -- | Like 'Network.Simple.TCP.connect' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 connect
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: (Ps.MonadSafe m)
   => HostName -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 connect host port = Ps.bracket (connectSock host port)
-                               (NS.sClose . fst)
+                               (liftIO . NS.sClose . fst)
 
 -- | Like 'Network.Simple.TCP.serve' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 serve
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: (Ps.MonadSafe m)
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> IO ()) -> m r
 serve hp port k = do
    listen hp port $ \(lsock,_) -> do
@@ -78,22 +78,23 @@ serve hp port k = do
 -- | Like 'Network.Simple.TCP.listen' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 listen
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: (Ps.MonadSafe m)
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
-listen hp port = Ps.bracket listen' (NS.sClose . fst)
+listen hp port = Ps.bracket listen' (liftIO . NS.sClose . fst)
   where
-    listen' = do x@(bsock,_) <- bindSock hp port
-                 NS.listen bsock (max 2048 NS.maxListenQueue)
-                 return x
+    listen' = liftIO $ do
+        x@(bsock,_) <- bindSock hp port
+        NS.listen bsock (max 2048 NS.maxListenQueue)
+        return x
 
 -- | Like 'Network.Simple.TCP.accept' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 accept
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: (Ps.MonadSafe m)
   => Socket -> ((Socket, SockAddr) -> m r) -> m r
 accept lsock k = do
     conn@(csock,_) <- liftIO (NS.accept lsock)
-    Ps.finally (k conn) (NS.sClose csock)
+    Ps.finally (k conn) (liftIO $ NS.sClose csock)
 {-# INLINABLE accept #-}
 
 --------------------------------------------------------------------------------
