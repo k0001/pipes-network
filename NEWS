@@ -1,5 +1,10 @@
 # Version HEAD
 
+* Remove the `Base m ~ IO` constraint from `Pipes.Network.TCP.Safe`
+
+
+# Version 0.6.0
+
 * Significantly upgraded the API and renamed functions to play well with
   pipes-4.0.0, pipes-safe-2.0.0 and network-simple-0.3.0.
 
