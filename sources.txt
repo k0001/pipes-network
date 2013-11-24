@@ -1,2 +1,2 @@
-git://github.com/Gabriel439/Haskell-Pipes-Safe-Library.git simpler
+git://github.com/Gabriel439/Haskell-Pipes-Safe-Library.git master
 ./
