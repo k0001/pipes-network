@@ -2,11 +2,11 @@ name:               pipes-network
 version:            0.6.1
 license:            BSD3
 license-file:       LICENSE
-copyright:          Copyright (c) Renzo Carbonara 2012-2013, Paolo Capriotti 2012-2012.
+copyright:          Copyright (c) Renzo Carbonara 2012-2014, Paolo Capriotti 2012-2012.
 author:             Renzo Carbonara
 maintainer:         renzocarbonaraλgmail.com
 stability:          Experimental
-tested-with:        GHC == 7.4.1
+tested-with:        GHC == 7.6.3
 homepage:           https://github.com/k0001/pipes-network
 bug-reports:        https://github.com/k0001/pipes-network/issues
 category:           Pipes, Network
