@@ -42,7 +42,7 @@ library
         bytestring     (>=0.9.2.1),
         network,
         network-simple (>=0.3 && <0.4),
-        pipes          (>=4.0 && <4.1),
+        pipes          (>=4.0 && <4.2),
         pipes-safe     (>=2.0.1 && <2.1),
         transformers   (>=0.2 && <0.4)
     exposed-modules:
