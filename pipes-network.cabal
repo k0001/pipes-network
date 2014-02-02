@@ -13,7 +13,7 @@ category:           Pipes, Network
 build-type:         Simple
 synopsis:           Use network sockets together with the pipes library.
 cabal-version:      >=1.8
-extra-source-files: README.md PEOPLE NEWS
+extra-source-files: README.md PEOPLE changelog
 description:
   Use network sockets together with the @pipes@ library.
   .
@@ -28,7 +28,7 @@ description:
   if you want to safely acquire and release operating system resources within a
   pipeline.
   .
-  See the @NEWS@ file in the source distribution to learn about any
+  See the @changelog@ file in the source distribution to learn about any
   important changes between version.
 
 source-repository head
