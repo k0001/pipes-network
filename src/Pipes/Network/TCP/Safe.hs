@@ -61,7 +61,7 @@ import           Pipes.Safe             (runSafeT)
 -- | Like 'Network.Simple.TCP.connect' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 connect
-  :: (Ps.MonadSafe m)
+  :: Ps.MonadSafe m
   => HostName -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 connect host port = Ps.bracket (connectSock host port)
                                (liftIO . NS.sClose . fst)
@@ -69,7 +69,7 @@ connect host port = Ps.bracket (connectSock host port)
 -- | Like 'Network.Simple.TCP.serve' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 serve
-  :: (Ps.MonadSafe m)
+  :: Ps.MonadSafe m
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> IO ()) -> m r
 serve hp port k = do
    listen hp port $ \(lsock,_) -> do
@@ -78,7 +78,7 @@ serve hp port k = do
 -- | Like 'Network.Simple.TCP.listen' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 listen
-  :: (Ps.MonadSafe m)
+  :: Ps.MonadSafe m
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 listen hp port = Ps.bracket listen' (liftIO . NS.sClose . fst)
   where
@@ -90,7 +90,7 @@ listen hp port = Ps.bracket listen' (liftIO . NS.sClose . fst)
 -- | Like 'Network.Simple.TCP.accept' from "Network.Simple.TCP", but compatible
 -- with 'Ps.MonadSafe'.
 accept
-  :: (Ps.MonadSafe m)
+  :: Ps.MonadSafe m
   => Socket -> ((Socket, SockAddr) -> m r) -> m r
 accept lsock k = do
     conn@(csock,_) <- liftIO (NS.accept lsock)
@@ -120,7 +120,7 @@ accept lsock k = do
 --
 -- >>> runSafeT . runEffect $ fromConnect 4096 "127.0.0.1" "9000" >-> P.print
 fromConnect
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: Ps.MonadSafe m
   => Int             -- ^Maximum number of bytes to receive and send
                      -- dowstream at once. Any positive value is fine, the
                      -- optimal value depends on how you deal with the
@@ -143,7 +143,7 @@ fromConnect nbytes host port = do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toConnect "127.0.0.1" "9000"
 toConnect
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: Ps.MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
   -> Consumer' B.ByteString m r
@@ -181,7 +181,7 @@ toConnect hp port = do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . runEffect $ fromServe 4096 "127.0.0.1" "9000" >-> P.print
 fromServe
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: Ps.MonadSafe m
   => Int             -- ^Maximum number of bytes to receive and send
                      -- dowstream at once. Any positive value is fine, the
                      -- optimal value depends on how you deal with the
@@ -206,7 +206,7 @@ fromServe nbytes hp port = do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toServe "127.0.0.1" "9000"
 toServe
-  :: (Ps.MonadSafe m, Ps.Base m ~ IO)
+  :: Ps.MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
   -> Consumer' B.ByteString m r

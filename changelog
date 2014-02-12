@@ -1,3 +1,9 @@
+# Version HEAD
+
+* Remove `Base m ~ IO` constraints from `Pipes.Network.TCP.Safe`, as
+  not all of them were removed in 0.6.1.
+
+
 # Version 0.6.2
 
 * Dependency bumps (upper bounds).
