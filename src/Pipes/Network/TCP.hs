@@ -83,7 +83,7 @@ fromSocket sock nbytes = loop where
 -- | Like 'fromSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
 -- time elapses before the interaction finishes, then an 'IOError' exception is
--- thrown. The time is specified in microseconds (10e6).
+-- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
 fromSocketTimeout
   :: MonadIO m
   => Int -> Socket -> Int -> Producer' B.ByteString m ()
@@ -121,7 +121,7 @@ fromSocketN sock = loop where
 -- | Like 'fromSocketN', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
 -- time elapses before the interaction finishes, then an 'IOError' exception is
--- thrown. The time is specified in microseconds (10e6).
+-- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
 fromSocketTimeoutN
   :: MonadIO m
   => Int -> Socket -> Int -> Server' Int B.ByteString m ()
@@ -158,7 +158,7 @@ toSocket sock = for cat (\a -> send sock a)
 -- | Like 'toSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
 -- time elapses before the interaction finishes, then an 'IOError' exception is
--- thrown. The time is specified in microseconds (10e6).
+-- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
 toSocketTimeout
   :: MonadIO m
   => Int -> Socket -> Consumer' B.ByteString m r
