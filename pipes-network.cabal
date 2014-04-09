@@ -43,7 +43,7 @@ library
         network,
         network-simple (>=0.3 && <0.4),
         pipes          (>=4.0 && <4.2),
-        pipes-safe     (>=2.0.2 && <2.1),
+        pipes-safe     (>=2.1 && <2.2),
         transformers   (>=0.2 && <0.4)
     exposed-modules:
         Pipes.Network.TCP
