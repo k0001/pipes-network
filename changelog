@@ -1,4 +1,4 @@
-# Version HEAD
+# Version 0.6.3
 
 * Bump `network-simple`, `transformers` and `pipes-safe` upper bounds.
 
