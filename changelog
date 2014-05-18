@@ -1,5 +1,7 @@
 # Version HEAD
 
+* Bump `network-simple`, `transformers` and `pipes-safe` upper bounds.
+
 * Remove `Base m ~ IO` constraints from `Pipes.Network.TCP.Safe`, as
   not all of them were removed in 0.6.1.
 
