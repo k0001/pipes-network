@@ -1,3 +1,7 @@
+# Version 0.7.0
+
+* Add Lazy version of "toSocket*".
+
 # Version 0.6.3
 
 * Bump `network-simple`, `transformers` and `pipes-safe` upper bounds.
