@@ -47,6 +47,7 @@ library
         transformers   (>=0.2 && <0.5)
     exposed-modules:
         Pipes.Network.TCP
+        Pipes.Network.TCP.Lazy
         Pipes.Network.TCP.Safe
     ghc-options: -Wall -O2
 
