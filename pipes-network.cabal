@@ -13,7 +13,7 @@ category:           Pipes, Network
 build-type:         Simple
 synopsis:           Use network sockets together with the pipes library.
 cabal-version:      >=1.8
-extra-source-files: README.md PEOPLE changelog
+extra-source-files: README.md PEOPLE changelog.md
 description:
   Use network sockets together with the @pipes@ library.
   .
