@@ -1,3 +1,9 @@
+# Version HEAD
+
+* Fix issue #29 where `fromSocketTimeout` and `fromSocketTimeoutN`
+  would loop forever.
+
+
 # Version 0.6.3
 
 * Bump `network-simple`, `transformers` and `pipes-safe` upper bounds.

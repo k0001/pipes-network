@@ -91,7 +91,9 @@ fromSocketTimeout wait sock nbytes = loop where
     loop = do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
        case mbs of
-          Just bs -> yield bs >> loop
+          Just bs
+           | B.null bs -> return ()
+           | otherwise -> yield bs >> loop
           Nothing -> liftIO $ ioError $ errnoToIOError
              "Pipes.Network.TCP.fromSocketTimeout" eTIMEDOUT Nothing Nothing
 {-# INLINABLE fromSocketTimeout #-}
@@ -129,7 +131,9 @@ fromSocketTimeoutN wait sock = loop where
     loop = \nbytes -> do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
        case mbs of
-          Just bs -> respond bs >>= loop
+          Just bs
+           | B.null bs -> return ()
+           | otherwise -> respond bs >>= loop
           Nothing -> liftIO $ ioError $ errnoToIOError
              "Pipes.Network.TCP.fromSocketTimeoutN" eTIMEDOUT Nothing Nothing
 {-# INLINABLE fromSocketTimeoutN #-}
