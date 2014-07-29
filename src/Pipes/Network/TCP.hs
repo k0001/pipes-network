@@ -41,9 +41,9 @@ import           Foreign.C.Error                (errnoToIOError, eTIMEDOUT)
 import qualified Network.Socket.ByteString      as NSB
 import           Network.Simple.TCP
                   (connect, serve, listen, accept, acceptFork,
-                   bindSock, connectSock, recv, send, sendLazy, sendMany,
-                   withSocketsDo,
-                   HostName, HostPreference(HostAny, HostIPv4, HostIPv6, Host),
+                   bindSock, connectSock, closeSock, recv, send, sendLazy,
+                   sendMany, withSocketsDo, HostName,
+                   HostPreference(HostAny, HostIPv4, HostIPv6, Host),
                    ServiceName, SockAddr, Socket)
 import           Pipes
 import           Pipes.Core
@@ -170,7 +170,7 @@ toSocket sock = for cat (\a -> send sock a)
 
 -- | Like 'toSocket' but takes a lazy 'BL.ByteSring' and sends it in a more
 -- efficient manner (compared to converting it to a strict 'B.ByteString' and
--- using 'toSocket')
+-- sending it).
 toSocketLazy
   :: MonadIO m
   => Socket  -- ^Connected socket.
@@ -180,7 +180,7 @@ toSocketLazy sock = for cat (\a -> sendLazy sock a)
 
 -- | Like 'toSocket' but takes a @['BL.ByteSring']@ and sends it in a more
 -- efficient manner (compared to converting it to a strict 'B.ByteString' and
--- using 'toSocket')
+-- sending it).
 toSocketMany
   :: MonadIO m
   => Socket  -- ^Connected socket.
@@ -198,7 +198,7 @@ toSocketTimeout = _toSocketTimeout send "Pipes.Network.TCP.toSocketTimeout"
 
 -- | Like 'toSocketTimeout' but takes a lazy 'BL.ByteSring' and sends it in a
 -- more efficient manner (compared to converting it to a strict 'B.ByteString'
--- and using 'toSocketTimeout')
+-- and sending it).
 toSocketTimeoutLazy :: MonadIO m => Int -> Socket -> Consumer' BL.ByteString m r
 toSocketTimeoutLazy =
     _toSocketTimeout sendLazy "Pipes.Network.TCP.toSocketTimeoutLazy"
@@ -206,7 +206,7 @@ toSocketTimeoutLazy =
 
 -- | Like 'toSocketTimeout' but takes a @['BL.ByteSring']@ and sends it in a
 -- more efficient manner (compared to converting it to a strict 'B.ByteString'
--- and using 'toSocketTimeout')
+-- and sending it).
 toSocketTimeoutMany
   :: MonadIO m => Int -> Socket -> Consumer' [B.ByteString] m r
 toSocketTimeoutMany =
@@ -237,6 +237,7 @@ _toSocketTimeout send' nm = \wait sock -> for cat $ \a -> do
 --     'bindSock',
 --     'connect',
 --     'connectSock',
+--     'closeSock',
 --     'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
 --     'listen',
 --     'recv',

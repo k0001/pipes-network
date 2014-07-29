@@ -26,10 +26,14 @@ module Pipes.Network.TCP.Safe (
   -- $client-streaming
   , fromConnect
   , toConnect
+  , toConnectLazy
+  , toConnectMany
   -- ** Server side
   -- $server-streaming
   , fromServe
   , toServe
+  , toServeLazy
+  , toServeMany
   -- * Exports
   -- $exports
   , module Pipes.Network.TCP
@@ -39,6 +43,7 @@ module Pipes.Network.TCP.Safe (
 
 import           Control.Monad
 import qualified Data.ByteString        as B
+import qualified Data.ByteString.Lazy   as BL
 import           Network.Simple.TCP
                   (acceptFork, bindSock, connectSock, recv, send, sendLazy,
                    sendMany, withSocketsDo, HostName,
@@ -130,9 +135,7 @@ fromConnect
   -> HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
   -> Producer' B.ByteString m ()
-fromConnect nbytes host port = do
-   connect host port $ \(csock,_) -> do
-      fromSocket csock nbytes
+fromConnect nbytes = _connect (\csock -> fromSocket csock nbytes)
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
 -- upstream.
@@ -149,9 +152,36 @@ toConnect
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
   -> Consumer' B.ByteString m r
-toConnect hp port = do
-   connect hp port $ \(csock,_) -> do
-      toSocket csock
+toConnect = _connect toSocket
+
+-- | Like 'toConnect', but works more efficiently on lazy 'BL.ByteString's
+-- (compared to converting them to a strict 'B.ByteString' and sending it)
+toConnectLazy
+  :: Ps.MonadSafe m
+  => HostName        -- ^Server host name.
+  -> ServiceName     -- ^Server service port.
+  -> Consumer' BL.ByteString m r
+toConnectLazy = _connect toSocketLazy
+
+-- | Like 'toConnect', but works more efficiently on @['B.ByteString']@
+-- (compared to converting them to a strict 'B.ByteString' and sending it)
+toConnectMany
+  :: Ps.MonadSafe m
+  => HostName        -- ^Server host name.
+  -> ServiceName     -- ^Server service port.
+  -> Consumer' [B.ByteString] m r
+toConnectMany = _connect toSocketMany
+
+_connect
+  :: Ps.MonadSafe m
+  => (Socket -> m r) -- ^Action to perform on the connection socket.
+  -> HostName        -- ^Server host name.
+  -> ServiceName     -- ^Server service port.
+  -> m r
+_connect act hp port = do
+    connect hp port $ \(csock,_) -> do
+       act csock
+{-# INLINABLE _connect #-}
 
 --------------------------------------------------------------------------------
 
@@ -191,10 +221,7 @@ fromServe
   -> HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
   -> Producer' B.ByteString m ()
-fromServe nbytes hp port = do
-   listen hp port $ \(lsock,_) -> do
-      accept lsock $ \(csock,_) -> do
-         fromSocket csock nbytes
+fromServe nbytes = _serve (\csock -> fromSocket csock nbytes)
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
 -- end the bytes received from upstream.
@@ -212,10 +239,37 @@ toServe
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
   -> Consumer' B.ByteString m r
-toServe hp port = do
+toServe = _serve toSocket
+
+-- | Like 'toServe', but works more efficiently on lazy 'BL.ByteString's
+-- (compared to converting them to a strict 'B.ByteString' and sending it)
+toServeLazy
+  :: Ps.MonadSafe m
+  => HostPreference  -- ^Preferred host to bind.
+  -> ServiceName     -- ^Service port to bind.
+  -> Consumer' BL.ByteString m r
+toServeLazy = _serve toSocketLazy
+
+-- | Like 'toServe', but works more efficiently on @['B.ByteString']@
+-- (compared to converting them to a strict 'B.ByteString' and sending it)
+toServeMany
+  :: Ps.MonadSafe m
+  => HostPreference  -- ^Preferred host to bind.
+  -> ServiceName     -- ^Service port to bind.
+  -> Consumer' [B.ByteString] m r
+toServeMany = _serve toSocketMany
+
+_serve
+  :: Ps.MonadSafe m
+  => (Socket -> m r) -- ^Action to perform on the connection socket.
+  -> HostPreference  -- ^Preferred host to bind.
+  -> ServiceName     -- ^Service port to bind.
+  -> m r
+_serve act hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
-         toSocket csock
+         act csock
+{-# INLINABLE _serve #-}
 
 --------------------------------------------------------------------------------
 
