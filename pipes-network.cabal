@@ -49,4 +49,3 @@ library
         Pipes.Network.TCP
         Pipes.Network.TCP.Safe
     ghc-options: -Wall -O2
-
