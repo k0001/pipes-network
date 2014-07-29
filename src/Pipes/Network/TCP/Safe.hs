@@ -45,8 +45,8 @@ import           Control.Monad
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Lazy   as BL
 import           Network.Simple.TCP
-                  (acceptFork, bindSock, connectSock, recv, send, sendLazy,
-                   sendMany, withSocketsDo, HostName,
+                  (acceptFork, bindSock, connectSock, closeSock, recv, send,
+                   sendLazy, sendMany, withSocketsDo, HostName,
                    HostPreference(HostAny, HostIPv4, HostIPv6, Host),
                    ServiceName, SockAddr, Socket)
 import qualified Network.Socket         as NS
@@ -268,6 +268,8 @@ _serve
 _serve act hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
+         closeSock lsock -- We prevent more connection attempts to happen
+                         -- while we deal with `csock`.
          act csock
 {-# INLINABLE _serve #-}
 
@@ -291,6 +293,7 @@ _serve act hp port = do
 --    'acceptFork',
 --    'bindSock',
 --    'connectSock',
+--    'closeSock',
 --    'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
 --    'recv',
 --    'send',
