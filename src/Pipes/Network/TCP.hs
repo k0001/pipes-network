@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 -- | This minimal module exports facilities that ease the usage of TCP
+
 -- 'Socket's in the /Pipes ecosystem/. It is meant to be used together with
 -- the "Network.Simple.TCP" module from the @network-simple@ package, which is
 -- completely re-exported from this module.
@@ -24,18 +25,24 @@ module Pipes.Network.TCP (
   -- * Sending
   -- $sending
   , toSocket
+  , toSocketLazy
+  , toSocketMany
   , toSocketTimeout
+  , toSocketTimeoutLazy
+  , toSocketTimeoutMany
   -- * Exports
   -- $exports
   , module Network.Simple.TCP
   ) where
 
 import qualified Data.ByteString                as B
+import qualified Data.ByteString.Lazy           as BL
 import           Foreign.C.Error                (errnoToIOError, eTIMEDOUT)
 import qualified Network.Socket.ByteString      as NSB
 import           Network.Simple.TCP
                   (connect, serve, listen, accept, acceptFork,
-                   bindSock, connectSock, recv, send, withSocketsDo,
+                   bindSock, connectSock, recv, send, sendLazy, sendMany,
+                   withSocketsDo,
                    HostName, HostPreference(HostAny, HostIPv4, HostIPv6, Host),
                    ServiceName, SockAddr, Socket)
 import           Pipes
@@ -46,13 +53,13 @@ import           System.Timeout                 (timeout)
 
 -- $receiving
 --
--- The following pipes allow you to receive bytes from the remote end.
+-- The following producers allow you to receive bytes from the remote end.
 --
--- Besides the pipes below, you might want to use "Network.Simple.TCP"'s
--- 'Network.Simple.TCP.recv', which happens to be an 'Effect'':
+-- Besides the producers below, you might want to use "Network.Simple.TCP"'s
+-- 'recv', which happens to be an 'Effect'':
 --
 -- @
--- 'Network.Simple.TCP.recv' :: 'MonadIO' m => 'Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
+-- 'recv' :: 'MonadIO' m => 'Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
 -- @
 
 --------------------------------------------------------------------------------
@@ -142,13 +149,15 @@ fromSocketTimeoutN wait sock = loop where
 
 -- $sending
 --
--- The following pipes allow you to send bytes to the remote end.
+-- The following consumers allow you to send bytes to the remote end.
 --
--- Besides the pipes below, you might want to use "Network.Simple.TCP"'s
--- 'Network.Simple.TCP.send', which happens to be an 'Effect'':
+-- Besides the consumers below, you might want to use "Network.Simple.TCP"'s
+-- 'send', 'sendLazy' or 'sendMany' which happen to be 'Effect''s:
 --
 -- @
--- 'Network.Simple.TCP.send' :: 'MonadIO' m => 'Socket' -> 'B.ByteString' -> 'Effect'' m ()
+-- 'send'     :: 'MonadIO' m => 'Socket' ->  'B.ByteString'  -> 'Effect'' m ()
+-- 'sendLazy' :: 'MonadIO' m => 'Socket' ->  'BL.ByteString'  -> 'Effect'' m ()
+-- 'sendMany' :: 'MonadIO' m => 'Socket' -> ['B.ByteString'] -> 'Effect'' m ()
 -- @
 
 -- | Sends to the remote end each 'B.ByteString' received from upstream.
@@ -159,20 +168,64 @@ toSocket
 toSocket sock = for cat (\a -> send sock a)
 {-# INLINABLE toSocket #-}
 
+-- | Like 'toSocket' but takes a lazy 'BL.ByteSring' and sends it in a more
+-- efficient manner (compared to converting it to a strict 'B.ByteString' and
+-- using 'toSocket')
+toSocketLazy
+  :: MonadIO m
+  => Socket  -- ^Connected socket.
+  -> Consumer' BL.ByteString m r
+toSocketLazy sock = for cat (\a -> sendLazy sock a)
+{-# INLINABLE toSocketLazy #-}
+
+-- | Like 'toSocket' but takes a @['BL.ByteSring']@ and sends it in a more
+-- efficient manner (compared to converting it to a strict 'B.ByteString' and
+-- using 'toSocket')
+toSocketMany
+  :: MonadIO m
+  => Socket  -- ^Connected socket.
+  -> Consumer' [B.ByteString] m r
+toSocketMany sock = for cat (\a -> sendMany sock a)
+{-# INLINABLE toSocketMany #-}
+
 -- | Like 'toSocket', except with the first 'Int' argument you can specify
 -- the maximum time that each interaction with the remote end can take. If such
 -- time elapses before the interaction finishes, then an 'IOError' exception is
 -- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
-toSocketTimeout
-  :: MonadIO m
-  => Int -> Socket -> Consumer' B.ByteString m r
-toSocketTimeout wait sock = for cat $ \a -> do
-    mu <- liftIO (timeout wait (NSB.sendAll sock a))
-    case mu of
-       Just () -> return ()
-       Nothing -> liftIO $ ioError $ errnoToIOError
-          "Pipes.Network.TCP.toSocketTimeout" eTIMEDOUT Nothing Nothing
+toSocketTimeout :: MonadIO m => Int -> Socket -> Consumer' B.ByteString m r
+toSocketTimeout = _toSocketTimeout send "Pipes.Network.TCP.toSocketTimeout"
 {-# INLINABLE toSocketTimeout #-}
+
+-- | Like 'toSocketTimeout' but takes a lazy 'BL.ByteSring' and sends it in a
+-- more efficient manner (compared to converting it to a strict 'B.ByteString'
+-- and using 'toSocketTimeout')
+toSocketTimeoutLazy :: MonadIO m => Int -> Socket -> Consumer' BL.ByteString m r
+toSocketTimeoutLazy =
+    _toSocketTimeout sendLazy "Pipes.Network.TCP.toSocketTimeoutLazy"
+{-# INLINABLE toSocketTimeoutLazy #-}
+
+-- | Like 'toSocketTimeout' but takes a @['BL.ByteSring']@ and sends it in a
+-- more efficient manner (compared to converting it to a strict 'B.ByteString'
+-- and using 'toSocketTimeout')
+toSocketTimeoutMany
+  :: MonadIO m => Int -> Socket -> Consumer' [B.ByteString] m r
+toSocketTimeoutMany =
+    _toSocketTimeout sendMany "Pipes.Network.TCP.toSocketTimeoutMany"
+{-# INLINABLE toSocketTimeoutMany #-}
+
+_toSocketTimeout
+  :: MonadIO m
+  => (Socket -> a -> IO ())
+  -> String
+  -> Int
+  -> Socket
+  -> Consumer' a m r
+_toSocketTimeout send' nm = \wait sock -> for cat $ \a -> do
+    mu <- liftIO (timeout wait (send' sock a))
+    case mu of
+      Just () -> return ()
+      Nothing -> liftIO $ ioError $ errnoToIOError nm eTIMEDOUT Nothing Nothing
+{-# INLINABLE _toSocketTimeout #-}
 
 --------------------------------------------------------------------------------
 
@@ -188,6 +241,8 @@ toSocketTimeout wait sock = for cat $ \a -> do
 --     'listen',
 --     'recv',
 --     'send',
+--     'sendLazy',
+--     'sendMany',
 --     'serve'.
 --
 -- [From "Network.Socket"]

@@ -40,14 +40,16 @@ module Pipes.Network.TCP.Safe (
 import           Control.Monad
 import qualified Data.ByteString        as B
 import           Network.Simple.TCP
-                  (acceptFork, bindSock, connectSock, recv, send, withSocketsDo,
-                   HostName, HostPreference(HostAny, HostIPv4, HostIPv6, Host),
+                  (acceptFork, bindSock, connectSock, recv, send, sendLazy,
+                   sendMany, withSocketsDo, HostName,
+                   HostPreference(HostAny, HostIPv4, HostIPv6, Host),
                    ServiceName, SockAddr, Socket)
 import qualified Network.Socket         as NS
 import           Pipes
 import           Pipes.Network.TCP
                   (fromSocket, fromSocketTimeout, fromSocketN,
-                   fromSocketTimeoutN, toSocket, toSocketTimeout)
+                   fromSocketTimeoutN, toSocket, toSocketLazy, toSocketMany,
+                   toSocketTimeout, toSocketTimeoutLazy, toSocketTimeoutMany)
 import qualified Pipes.Safe             as Ps
 import           Pipes.Safe             (runSafeT)
 
@@ -225,7 +227,11 @@ toServe hp port = do
 --    'fromSocketTimeout',
 --    'fromSocketTimeoutN',
 --    'toSocket',
---    'toSocketTimeout'.
+--    'toSocketLazy',
+--    'toSocketMany',
+--    'toSocketTimeout',
+--    'toSocketTimeoutLazy',
+--    'toSocketTimeoutMany'.
 --
 -- [From "Network.Simple.TCP"]
 --    'acceptFork',
@@ -233,7 +239,9 @@ toServe hp port = do
 --    'connectSock',
 --    'HostPreference'('HostAny','HostIPv4','HostIPv6','Host'),
 --    'recv',
---    'send'.
+--    'send',
+--    'sendLazy',
+--    'sendMany'.
 --
 -- [From "Network.Socket"]
 --    'HostName',
@@ -244,4 +252,3 @@ toServe hp port = do
 --
 -- [From "Pipes.Safe"]
 --    'Ps.runSafeT'.
-
