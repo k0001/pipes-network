@@ -53,13 +53,13 @@ import           System.Timeout                 (timeout)
 
 -- $receiving
 --
--- The following pipes allow you to receive bytes from the remote end.
+-- The following producers allow you to receive bytes from the remote end.
 --
--- Besides the pipes below, you might want to use "Network.Simple.TCP"'s
--- 'Network.Simple.TCP.recv', which happens to be an 'Effect'':
+-- Besides the producers below, you might want to use "Network.Simple.TCP"'s
+-- 'recv', which happens to be an 'Effect'':
 --
 -- @
--- 'Network.Simple.TCP.recv' :: 'MonadIO' m => 'Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
+-- 'recv' :: 'MonadIO' m => 'Socket' -> 'Int' -> 'Effect'' m ('Maybe' 'B.ByteString')
 -- @
 
 --------------------------------------------------------------------------------
@@ -149,14 +149,14 @@ fromSocketTimeoutN wait sock = loop where
 
 -- $sending
 --
--- The following pipes allow you to send bytes to the remote end.
+-- The following consumers allow you to send bytes to the remote end.
 --
--- Besides the pipes below, you might want to use "Network.Simple.TCP"'s
+-- Besides the consumers below, you might want to use "Network.Simple.TCP"'s
 -- 'send', 'sendLazy' or 'sendMany' which happen to be 'Effect''s:
 --
 -- @
--- 'send' :: 'MonadIO' m => 'Socket' -> 'B.ByteString' -> 'Effect'' m ()
--- 'sendLazy' :: 'MonadIO' m => 'Socket' -> 'BL.ByteString' -> 'Effect'' m ()
+-- 'send'     :: 'MonadIO' m => 'Socket' ->  'B.ByteString'  -> 'Effect'' m ()
+-- 'sendLazy' :: 'MonadIO' m => 'Socket' ->  'BL.ByteString'  -> 'Effect'' m ()
 -- 'sendMany' :: 'MonadIO' m => 'Socket' -> ['B.ByteString'] -> 'Effect'' m ()
 -- @
 
@@ -168,7 +168,9 @@ toSocket
 toSocket sock = for cat (\a -> send sock a)
 {-# INLINABLE toSocket #-}
 
--- | Like 'toSocket' but takes a lazy 'BL.ByteSring' and sends it efficiently.
+-- | Like 'toSocket' but takes a lazy 'BL.ByteSring' and sends it in a more
+-- efficient manner (compared to converting it to a strict 'B.ByteString' and
+-- using 'toSocket')
 toSocketLazy
   :: MonadIO m
   => Socket  -- ^Connected socket.
@@ -176,7 +178,9 @@ toSocketLazy
 toSocketLazy sock = for cat (\a -> sendLazy sock a)
 {-# INLINABLE toSocketLazy #-}
 
--- | Like 'toSocket' but takes a @['BL.ByteSring']@ and sends it efficiently.
+-- | Like 'toSocket' but takes a @['BL.ByteSring']@ and sends it in a more
+-- efficient manner (compared to converting it to a strict 'B.ByteString' and
+-- using 'toSocket')
 toSocketMany
   :: MonadIO m
   => Socket  -- ^Connected socket.
@@ -192,21 +196,22 @@ toSocketTimeout :: MonadIO m => Int -> Socket -> Consumer' B.ByteString m r
 toSocketTimeout = _toSocketTimeout send "Pipes.Network.TCP.toSocketTimeout"
 {-# INLINABLE toSocketTimeout #-}
 
--- | Like 'toSocketTimeout' but takes a lazy 'BL.ByteSring' and sends it
--- efficiently.
+-- | Like 'toSocketTimeout' but takes a lazy 'BL.ByteSring' and sends it in a
+-- more efficient manner (compared to converting it to a strict 'B.ByteString'
+-- and using 'toSocketTimeout')
 toSocketTimeoutLazy :: MonadIO m => Int -> Socket -> Consumer' BL.ByteString m r
 toSocketTimeoutLazy =
     _toSocketTimeout sendLazy "Pipes.Network.TCP.toSocketTimeoutLazy"
 {-# INLINABLE toSocketTimeoutLazy #-}
 
--- | Like 'toSocketTimeout' but takes a @['BL.ByteSring']@ and sends it
--- efficiently.
+-- | Like 'toSocketTimeout' but takes a @['BL.ByteSring']@ and sends it in a
+-- more efficient manner (compared to converting it to a strict 'B.ByteString'
+-- and using 'toSocketTimeout')
 toSocketTimeoutMany
   :: MonadIO m => Int -> Socket -> Consumer' [B.ByteString] m r
 toSocketTimeoutMany =
     _toSocketTimeout sendMany "Pipes.Network.TCP.toSocketTimeoutMany"
 {-# INLINABLE toSocketTimeoutMany #-}
-
 
 _toSocketTimeout
   :: MonadIO m
