@@ -1,5 +1,10 @@
 # Version HEAD
 
+* Re-export `sendLazy` and `sendMany`.
+
+* Add `toSocketLazy`, `toSocketMany`, `toSocketTimeoutLazy` and
+  `toSocketTimeoutMany`.
+
 * Fix issue #29 where `fromSocketTimeout` and `fromSocketTimeoutN`
   would loop forever.
 
