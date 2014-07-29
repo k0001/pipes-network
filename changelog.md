@@ -1,5 +1,9 @@
 # Version HEAD
 
+* The various `fromServe` and `toServe*` pipes from
+  `Pipes.Network.TCP.Safe` now close the listening socket immediately
+  after accepting a first connection.
+
 * Re-export `sendLazy`, `sendMany` and `closeSock`.
 
 * Add `to{Socket,SocketTimeout,Serve,Connect}{Lazy,Many}`.
