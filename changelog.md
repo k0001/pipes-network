@@ -1,4 +1,4 @@
-# Version HEAD
+# Version 0.6.4
 
 * The various `fromServe` and `toServe*` pipes from
   `Pipes.Network.TCP.Safe` now close the listening socket immediately
