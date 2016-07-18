@@ -44,7 +44,7 @@ library
         network-simple (>=0.4.0.1 && <0.5),
         pipes          (>=4.0 && <4.2),
         pipes-safe     (>=2.1 && <2.3),
-        transformers   (>=0.2 && <0.5)
+        transformers   (>=0.2 && <0.6)
     exposed-modules:
         Pipes.Network.TCP
         Pipes.Network.TCP.Safe
