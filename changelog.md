@@ -1,3 +1,8 @@
+# Version 0.6.4.1
+
+* Raise upper-bound dependency on `transformers` and `pipes`.
+
+
 # Version 0.6.4
 
 * The various `fromServe` and `toServe*` pipes from
