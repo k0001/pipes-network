@@ -1,3 +1,12 @@
+# Version 0.6.5
+
+* Remover upper bound on all dependencies except `base`.
+
+* Fixed internal error handling in server-side functions.
+
+* Re-export `MonadSafe`.
+
+
 # Version 0.6.4.1
 
 * Raise upper-bound dependency on `transformers` and `pipes`.

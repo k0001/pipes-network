@@ -1,4 +1,6 @@
-{-# LANGUAGE Rank2Types, TypeFamilies #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- | This module exports facilities allowing you to safely obtain, use and
 -- release 'Socket' resources within a /Pipes/ pipeline, by relying on
@@ -6,7 +8,7 @@
 --
 -- This module is meant to be used as a replacement of "Pipes.Network.TCP",
 -- and as such it overrides some functions from "Network.Simple.TCP" so that
--- they use 'Ps.MonadSafe' instead of 'IO' as their base monad. Additionally,
+-- they use 'MonadSafe' instead of 'IO' as their base monad. Additionally,
 -- It also exports pipes that establish a TCP connection and interact with
 -- it in a streaming fashion at once.
 --
@@ -42,8 +44,10 @@ module Pipes.Network.TCP.Safe (
   ) where
 
 import           Control.Monad
+import qualified Control.Monad.Catch    as C
 import qualified Data.ByteString        as B
 import qualified Data.ByteString.Lazy   as BL
+import qualified Network.Simple.TCP     as T
 import           Network.Simple.TCP
                   (acceptFork, bindSock, connectSock, closeSock, recv, send,
                    sendLazy, sendMany, withSocketsDo, HostName,
@@ -56,38 +60,38 @@ import           Pipes.Network.TCP
                    fromSocketTimeoutN, toSocket, toSocketLazy, toSocketMany,
                    toSocketTimeout, toSocketTimeoutLazy, toSocketTimeoutMany)
 import qualified Pipes.Safe             as Ps
-import           Pipes.Safe             (runSafeT)
+import           Pipes.Safe             (runSafeT, MonadSafe)
 
 --------------------------------------------------------------------------------
 
 -- $network-simple-upgrades
 --
 -- The following functions are analogous versions of those exported by
--- "Network.Simple.TCP", but compatible with 'Ps.MonadSafe'.
+-- "Network.Simple.TCP", but compatible with 'MonadSafe'.
 
 -- | Like 'Network.Simple.TCP.connect' from "Network.Simple.TCP", but compatible
--- with 'Ps.MonadSafe'.
+-- with 'MonadSafe'.
 connect
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostName -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
 connect host port = Ps.bracket (connectSock host port)
-                               (liftIO . NS.sClose . fst)
+                               (T.closeSock . fst)
 
 -- | Like 'Network.Simple.TCP.serve' from "Network.Simple.TCP", but compatible
--- with 'Ps.MonadSafe'.
+-- with 'MonadSafe'.
 serve
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> IO ()) -> m r
 serve hp port k = do
    listen hp port $ \(lsock,_) -> do
       forever $ acceptFork lsock k
 
 -- | Like 'Network.Simple.TCP.listen' from "Network.Simple.TCP", but compatible
--- with 'Ps.MonadSafe'.
+-- with 'MonadSafe'.
 listen
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostPreference -> ServiceName -> ((Socket, SockAddr) -> m r) -> m r
-listen hp port = Ps.bracket listen' (liftIO . NS.sClose . fst)
+listen hp port = Ps.bracket listen' (T.closeSock . fst)
   where
     listen' = liftIO $ do
         x@(bsock,_) <- bindSock hp port
@@ -95,13 +99,13 @@ listen hp port = Ps.bracket listen' (liftIO . NS.sClose . fst)
         return x
 
 -- | Like 'Network.Simple.TCP.accept' from "Network.Simple.TCP", but compatible
--- with 'Ps.MonadSafe'.
+-- with 'MonadSafe'.
 accept
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => Socket -> ((Socket, SockAddr) -> m r) -> m r
 accept lsock k = do
     conn@(csock,_) <- liftIO (NS.accept lsock)
-    Ps.finally (k conn) (liftIO $ NS.sClose csock)
+    Ps.finally (k conn) (T.closeSock csock)
 {-# INLINABLE accept #-}
 
 --------------------------------------------------------------------------------
@@ -127,7 +131,7 @@ accept lsock k = do
 --
 -- >>> runSafeT . runEffect $ fromConnect 4096 "127.0.0.1" "9000" >-> P.print
 fromConnect
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => Int             -- ^Maximum number of bytes to receive and send
                      -- dowstream at once. Any positive value is fine, the
                      -- optimal value depends on how you deal with the
@@ -148,7 +152,7 @@ fromConnect nbytes = _connect (\csock -> fromSocket csock nbytes)
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toConnect "127.0.0.1" "9000"
 toConnect
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
   -> Consumer' B.ByteString m r
@@ -157,7 +161,7 @@ toConnect = _connect toSocket
 -- | Like 'toConnect', but works more efficiently on lazy 'BL.ByteString's
 -- (compared to converting them to a strict 'B.ByteString' and sending it)
 toConnectLazy
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
   -> Consumer' BL.ByteString m r
@@ -166,14 +170,14 @@ toConnectLazy = _connect toSocketLazy
 -- | Like 'toConnect', but works more efficiently on @['B.ByteString']@
 -- (compared to converting them to a strict 'B.ByteString' and sending it)
 toConnectMany
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
   -> Consumer' [B.ByteString] m r
 toConnectMany = _connect toSocketMany
 
 _connect
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => (Socket -> m r) -- ^Action to perform on the connection socket.
   -> HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
@@ -213,7 +217,7 @@ _connect act hp port = do
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . runEffect $ fromServe 4096 "127.0.0.1" "9000" >-> P.print
 fromServe
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => Int             -- ^Maximum number of bytes to receive and send
                      -- dowstream at once. Any positive value is fine, the
                      -- optimal value depends on how you deal with the
@@ -235,7 +239,7 @@ fromServe nbytes = _serve (\csock -> fromSocket csock nbytes)
 -- >>> :set -XOverloadedStrings
 -- >>> runSafeT . runEffect $ each ["He","llo\r\n"] >-> toServe "127.0.0.1" "9000"
 toServe
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
   -> Consumer' B.ByteString m r
@@ -244,7 +248,7 @@ toServe = _serve toSocket
 -- | Like 'toServe', but works more efficiently on lazy 'BL.ByteString's
 -- (compared to converting them to a strict 'B.ByteString' and sending it)
 toServeLazy
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
   -> Consumer' BL.ByteString m r
@@ -253,14 +257,14 @@ toServeLazy = _serve toSocketLazy
 -- | Like 'toServe', but works more efficiently on @['B.ByteString']@
 -- (compared to converting them to a strict 'B.ByteString' and sending it)
 toServeMany
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
   -> Consumer' [B.ByteString] m r
 toServeMany = _serve toSocketMany
 
 _serve
-  :: Ps.MonadSafe m
+  :: MonadSafe m
   => (Socket -> m r) -- ^Action to perform on the connection socket.
   -> HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
@@ -268,8 +272,8 @@ _serve
 _serve act hp port = do
    listen hp port $ \(lsock,_) -> do
       accept lsock $ \(csock,_) -> do
-         closeSock lsock -- We prevent more connection attempts to happen
-                         -- while we deal with `csock`.
+         -- We prevent further connection attempts while we deal with `csock`.
+         C.catch (closeSock lsock) (\(_ :: IOError) -> pure ())
          act csock
 {-# INLINABLE _serve #-}
 
@@ -308,4 +312,5 @@ _serve act hp port = do
 --    'withSocketsDo'.
 --
 -- [From "Pipes.Safe"]
---    'Ps.runSafeT'.
+--    'runSafeT',
+--    'MonadSafe'.
