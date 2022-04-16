@@ -125,7 +125,7 @@ accept lsock k = do
 --
 -- The connection socket is closed when done or in case of exceptions.
 --
--- Using this 'Producer'' you can write straightforward code like the following,
+-- Using this 'Producer' you can write straightforward code like the following,
 -- which prints whatever is received from a single TCP connection to a given
 -- server listening locally on port 9000, in chunks of up to 4096 bytes:
 --
@@ -138,7 +138,7 @@ fromConnect
                      -- received data. Try using @4096@ if you don't care.
   -> HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
-  -> Producer' B.ByteString m ()
+  -> Producer B.ByteString m ()
 fromConnect nbytes = _connect (\csock -> fromSocket csock nbytes)
 
 -- | Connects to a TCP server, sends to the remote end the bytes received from
@@ -146,7 +146,7 @@ fromConnect nbytes = _connect (\csock -> fromSocket csock nbytes)
 --
 -- The connection socket is closed in case of exceptions.
 --
--- Using this 'Consumer'' you can write straightforward code like the following,
+-- Using this 'Consumer' you can write straightforward code like the following,
 -- which greets a TCP client listening locally at port 9000:
 --
 -- >>> :set -XOverloadedStrings
@@ -155,7 +155,7 @@ toConnect
   :: MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
-  -> Consumer' B.ByteString m r
+  -> Consumer B.ByteString m r
 toConnect = _connect toSocket
 
 -- | Like 'toConnect', but works more efficiently on lazy 'BL.ByteString's
@@ -164,7 +164,7 @@ toConnectLazy
   :: MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
-  -> Consumer' BL.ByteString m r
+  -> Consumer BL.ByteString m r
 toConnectLazy = _connect toSocketLazy
 
 -- | Like 'toConnect', but works more efficiently on @['B.ByteString']@
@@ -173,7 +173,7 @@ toConnectMany
   :: MonadSafe m
   => HostName        -- ^Server host name.
   -> ServiceName     -- ^Server service port.
-  -> Consumer' [B.ByteString] m r
+  -> Consumer [B.ByteString] m r
 toConnectMany = _connect toSocketMany
 
 _connect
@@ -204,13 +204,13 @@ _connect act hp port = do
 --
 -- Less than the specified maximum number of bytes might be received at once.
 --
--- This 'Producer'' returns if the remote peer closes its side of the connection
+-- This 'Producer' returns if the remote peer closes its side of the connection
 -- or EOF is received.
 --
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
--- Using this 'Producer'' you can write straightforward code like the following,
+-- Using this 'Producer' you can write straightforward code like the following,
 -- which prints whatever is received from a single TCP connection to port 9000,
 -- in chunks of up to 4096 bytes.
 --
@@ -224,7 +224,7 @@ fromServe
                      -- received data. Try using @4096@ if you don't care.
   -> HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
-  -> Producer' B.ByteString m ()
+  -> Producer B.ByteString m ()
 fromServe nbytes = _serve (\csock -> fromSocket csock nbytes)
 
 -- | Binds a listening socket, accepts a single connection, sends to the remote
@@ -233,7 +233,7 @@ fromServe nbytes = _serve (\csock -> fromSocket csock nbytes)
 -- Both the listening and connection sockets are closed when done or in case of
 -- exceptions.
 --
--- Using this 'Consumer'' you can write straightforward code like the following,
+-- Using this 'Consumer' you can write straightforward code like the following,
 -- which greets a TCP client connecting to port 9000:
 --
 -- >>> :set -XOverloadedStrings
@@ -242,7 +242,7 @@ toServe
   :: MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
-  -> Consumer' B.ByteString m r
+  -> Consumer B.ByteString m r
 toServe = _serve toSocket
 
 -- | Like 'toServe', but works more efficiently on lazy 'BL.ByteString's
@@ -251,7 +251,7 @@ toServeLazy
   :: MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
-  -> Consumer' BL.ByteString m r
+  -> Consumer BL.ByteString m r
 toServeLazy = _serve toSocketLazy
 
 -- | Like 'toServe', but works more efficiently on @['B.ByteString']@
@@ -260,7 +260,7 @@ toServeMany
   :: MonadSafe m
   => HostPreference  -- ^Preferred host to bind.
   -> ServiceName     -- ^Service port to bind.
-  -> Consumer' [B.ByteString] m r
+  -> Consumer [B.ByteString] m r
 toServeMany = _serve toSocketMany
 
 _serve
