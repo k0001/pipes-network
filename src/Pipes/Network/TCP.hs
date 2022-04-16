@@ -69,7 +69,7 @@ import           System.Timeout                 (timeout)
 -- The number of bytes received at once is always in the interval
 -- /[1 .. specified maximum]/.
 --
--- This 'Producer'' returns if the remote peer closes its side of the connection
+-- This 'Producer' returns if the remote peer closes its side of the connection
 -- or EOF is received.
 fromSocket
   :: MonadIO m
@@ -78,7 +78,7 @@ fromSocket
                 -- dowstream at once. Any positive value is fine, the
                 -- optimal value depends on how you deal with the
                 -- received data. Try using @4096@ if you don't care.
-  -> Producer' B.ByteString m ()
+  -> Producer B.ByteString m ()
 fromSocket sock nbytes = loop where
     loop = do
         bs <- liftIO (NSB.recv sock nbytes)
@@ -93,7 +93,7 @@ fromSocket sock nbytes = loop where
 -- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
 fromSocketTimeout
   :: MonadIO m
-  => Int -> Socket -> Int -> Producer' B.ByteString m ()
+  => Int -> Socket -> Int -> Producer B.ByteString m ()
 fromSocketTimeout wait sock nbytes = loop where
     loop = do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
@@ -117,13 +117,13 @@ fromSocketTimeout wait sock nbytes = loop where
 
 -- | Like 'fromSocket', except the downstream pipe can specify the maximum
 -- number of bytes to receive at once using 'request'.
-fromSocketN :: MonadIO m => Socket -> Int -> Server' Int B.ByteString m ()
+fromSocketN :: MonadIO m => Socket -> Int -> Server Int B.ByteString m ()
 fromSocketN sock = loop where
     loop = \nbytes -> do
         bs <- liftIO (NSB.recv sock nbytes)
         if B.null bs
            then return ()
-           else respond bs >>= loop
+           else respond bs >>= \x -> loop x
 {-# INLINABLE fromSocketN #-}
 
 
@@ -133,7 +133,7 @@ fromSocketN sock = loop where
 -- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
 fromSocketTimeoutN
   :: MonadIO m
-  => Int -> Socket -> Int -> Server' Int B.ByteString m ()
+  => Int -> Socket -> Int -> Server Int B.ByteString m ()
 fromSocketTimeoutN wait sock = loop where
     loop = \nbytes -> do
        mbs <- liftIO (timeout wait (NSB.recv sock nbytes))
@@ -164,7 +164,7 @@ fromSocketTimeoutN wait sock = loop where
 toSocket
   :: MonadIO m
   => Socket  -- ^Connected socket.
-  -> Consumer' B.ByteString m r
+  -> Consumer B.ByteString m r
 toSocket sock = for cat (\a -> send sock a)
 {-# INLINABLE toSocket #-}
 
@@ -174,7 +174,7 @@ toSocket sock = for cat (\a -> send sock a)
 toSocketLazy
   :: MonadIO m
   => Socket  -- ^Connected socket.
-  -> Consumer' BL.ByteString m r
+  -> Consumer BL.ByteString m r
 toSocketLazy sock = for cat (\a -> sendLazy sock a)
 {-# INLINABLE toSocketLazy #-}
 
@@ -184,7 +184,7 @@ toSocketLazy sock = for cat (\a -> sendLazy sock a)
 toSocketMany
   :: MonadIO m
   => Socket  -- ^Connected socket.
-  -> Consumer' [B.ByteString] m r
+  -> Consumer [B.ByteString] m r
 toSocketMany sock = for cat (\a -> sendMany sock a)
 {-# INLINABLE toSocketMany #-}
 
@@ -192,14 +192,14 @@ toSocketMany sock = for cat (\a -> sendMany sock a)
 -- the maximum time that each interaction with the remote end can take. If such
 -- time elapses before the interaction finishes, then an 'IOError' exception is
 -- thrown. The time is specified in microseconds (1 second = 1e6 microseconds).
-toSocketTimeout :: MonadIO m => Int -> Socket -> Consumer' B.ByteString m r
+toSocketTimeout :: MonadIO m => Int -> Socket -> Consumer B.ByteString m r
 toSocketTimeout = _toSocketTimeout send "Pipes.Network.TCP.toSocketTimeout"
 {-# INLINABLE toSocketTimeout #-}
 
 -- | Like 'toSocketTimeout' but takes a lazy 'BL.ByteSring' and sends it in a
 -- more efficient manner (compared to converting it to a strict 'B.ByteString'
 -- and sending it).
-toSocketTimeoutLazy :: MonadIO m => Int -> Socket -> Consumer' BL.ByteString m r
+toSocketTimeoutLazy :: MonadIO m => Int -> Socket -> Consumer BL.ByteString m r
 toSocketTimeoutLazy =
     _toSocketTimeout sendLazy "Pipes.Network.TCP.toSocketTimeoutLazy"
 {-# INLINABLE toSocketTimeoutLazy #-}
@@ -208,7 +208,7 @@ toSocketTimeoutLazy =
 -- more efficient manner (compared to converting it to a strict 'B.ByteString'
 -- and sending it).
 toSocketTimeoutMany
-  :: MonadIO m => Int -> Socket -> Consumer' [B.ByteString] m r
+  :: MonadIO m => Int -> Socket -> Consumer [B.ByteString] m r
 toSocketTimeoutMany =
     _toSocketTimeout sendMany "Pipes.Network.TCP.toSocketTimeoutMany"
 {-# INLINABLE toSocketTimeoutMany #-}
@@ -219,7 +219,7 @@ _toSocketTimeout
   -> String
   -> Int
   -> Socket
-  -> Consumer' a m r
+  -> Consumer a m r
 _toSocketTimeout send' nm = \wait sock -> for cat $ \a -> do
     mu <- liftIO (timeout wait (send' sock a))
     case mu of
